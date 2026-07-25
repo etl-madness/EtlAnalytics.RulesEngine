@@ -12,7 +12,7 @@ The prohibited keywords are defined in a `static readonly` array within the `Bus
 private static readonly string[] ForbiddenSqlKeywords = 
 { 
     "DROP", "TRUNCATE", "DELETE", "UPDATE", "INSERT", 
-    "GRANT", "REVOKE", "ALTER", "CREATE", "EXEC", "EXECUTE",
+    "GRANT", "REVOKE", "ALTER", "CREATE", 
     "xp_cmdshell", "sys.", "information_schema"
 };
 ```
