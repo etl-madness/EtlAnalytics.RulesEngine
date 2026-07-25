@@ -82,7 +82,7 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
             .Where(x => x != null)
             .Cast<string>()
             .ToArray();
-            
+
         _forbiddenKeywords = configKeywords.Length > 0 ? configKeywords : DefaultForbiddenSqlKeywords;
 
         // 2. Load Script References (WithReferences)
@@ -351,16 +351,20 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
         // Define a restricted set of allowed assemblies and namespaces
         var options = ScriptOptions.Default;
 
-        if (_scriptReferences.Length > 0)
-        {
-            options = options.WithReferences(_scriptReferences);
-        }
-        else
-        {
-            options = options.WithReferences(DefaultScriptReferences);
-        }
-
+        var references = _scriptReferences
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .ToArray();
         options = options.WithImports(_scriptImports);
+        options = references.Length > 0
+            ? options.WithReferences(references)
+            : options.WithReferences(DefaultScriptReferences);
+        var imports = _scriptImports
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .ToArray();
+        options = options.WithImports(imports.Length > 0 ? imports : DefaultScriptImports);
+
 
         // Add reference to the assembly containing TContext if it's different and not already added
         if (typeof(TContext).Assembly != typeof(RuleExecutionContext).Assembly)

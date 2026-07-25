@@ -30,7 +30,7 @@ Welcome to the **EtlAnalytics.RulesEngine**! If you're new to the concept of a "
 > - **[BUSINESS_RULES.md](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/BUSINESS_RULES.md)**: Example Business Rules documentation
 > - **[DEVELOPERS_GUIDE.md](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/DEVELOPERS_GUIDE.md)**: Developers Guide.
 > - **[Security Blacklist Modification](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/forbidden_keywords_modification.md)**: Instructions for managing the SQL security sandbox.
-> - **[Source Code](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/EtlAnalytics.RulesEngine)**: Release source code for version 2.0.1.
+> - **[Source Code](https://github.com/etl-madness/EtlAnalytics.RulesEngine)**: Release source code for version 2.0.1.
 
 ---
 

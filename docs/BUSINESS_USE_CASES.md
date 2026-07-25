@@ -121,9 +121,10 @@ var requestMessage = new HttpRequestMessage(HttpMethod.Post, fixletActionUri)
         "application/json")
 };
 
-// Add BigFix API Authentication
-client.DefaultRequestHeaders.Authorization = 
-    new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes("sec_admin:SecretPass123!")));
+ 
+  // Add BigFix API Authentication
+     client.DefaultRequestHeaders.Authorization = 
+         new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes("<username>:<password>")));
 
 var bigFixResponse = await client.SendAsync(requestMessage);
 string resultMessage = await bigFixResponse.Content.ReadAsStringAsync();
