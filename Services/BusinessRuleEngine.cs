@@ -30,7 +30,33 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
         "xp_cmdshell", "sys.", "information_schema"
     };
 
+    private static readonly System.Reflection.Assembly[] DefaultScriptReferences =
+    {
+        typeof(object).Assembly, // mscorlib / System.Runtime
+        typeof(System.Linq.Enumerable).Assembly,
+        typeof(System.Collections.Generic.List<>).Assembly,
+        typeof(System.Xml.Linq.XElement).Assembly,
+        typeof(System.Xml.XmlDocument).Assembly,
+        typeof(RuleExecutionContext).Assembly
+    };
+
+    private static readonly string[] DefaultScriptImports =
+    {
+        "System",
+        "System.Collections.Generic",
+        "System.Linq",
+        "System.Text",
+        "System.Threading.Tasks",
+        "System.Xml",
+        "System.Xml.Linq",
+        "EtlAnalytics.RulesEngine.Models"
+    };
+
     private readonly string[] _forbiddenKeywords;
+    private readonly string[] _scriptReferences;
+    private readonly string[] _scriptImports;
+    private readonly int _sqlTimeoutSeconds;
+    private readonly int _scriptTimeoutSeconds;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="BusinessRuleEngine{TContext}"/> class.
@@ -56,10 +82,84 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
             .Where(x => x != null)
             .Cast<string>()
             .ToArray();
-            
+
         _forbiddenKeywords = configKeywords.Length > 0 ? configKeywords : DefaultForbiddenSqlKeywords;
 
-        // 2. Load Connection String
+        // 2. Load Script References (WithReferences)
+        var configReferences = configuration.GetSection("RulesEngine:WithReferences")
+            .GetChildren()
+            .Select(x => x.Value)
+            .Where(x => x != null)
+            .Cast<string>()
+            .ToArray();
+
+        if (configReferences.Length == 0)
+        {
+            configReferences = configuration.GetSection("RulesEngine:ScriptReferences")
+                .GetChildren()
+                .Select(x => x.Value)
+                .Where(x => x != null)
+                .Cast<string>()
+                .ToArray();
+        }
+
+        if (configReferences.Length == 0)
+        {
+            configReferences = configuration.GetSection("RulesEngine:CSharpReferences")
+                .GetChildren()
+                .Select(x => x.Value)
+                .Where(x => x != null)
+                .Cast<string>()
+                .ToArray();
+        }
+
+        _scriptReferences = configReferences;
+
+        // 3. Load Script Imports (WithImports)
+        var configImports = configuration.GetSection("RulesEngine:WithImports")
+            .GetChildren()
+            .Select(x => x.Value)
+            .Where(x => x != null)
+            .Cast<string>()
+            .ToArray();
+
+        if (configImports.Length == 0)
+        {
+            configImports = configuration.GetSection("RulesEngine:ScriptImports")
+                .GetChildren()
+                .Select(x => x.Value)
+                .Where(x => x != null)
+                .Cast<string>()
+                .ToArray();
+        }
+
+        if (configImports.Length == 0)
+        {
+            configImports = configuration.GetSection("RulesEngine:CSharpImports")
+                .GetChildren()
+                .Select(x => x.Value)
+                .Where(x => x != null)
+                .Cast<string>()
+                .ToArray();
+        }
+
+        _scriptImports = configImports.Length > 0 ? configImports : DefaultScriptImports;
+
+        // 4. Load Timeouts
+        var sqlTimeoutStr = configuration["RulesEngine:SqlTimeoutSeconds"]
+            ?? configuration["RulesEngine:SqlTimeout"]
+            ?? configuration["RulesEngine:CommandTimeout"];
+        _sqlTimeoutSeconds = int.TryParse(sqlTimeoutStr, out var parsedSqlTimeout) && parsedSqlTimeout > 0
+            ? parsedSqlTimeout
+            : DefaultSqlTimeoutSeconds;
+
+        var scriptTimeoutStr = configuration["RulesEngine:ScriptTimeoutSeconds"]
+            ?? configuration["RulesEngine:ScriptTimeout"];
+        _scriptTimeoutSeconds = int.TryParse(scriptTimeoutStr, out var parsedScriptTimeout) && parsedScriptTimeout > 0
+            ? parsedScriptTimeout
+            : DefaultScriptTimeoutSeconds;
+
+        // 5. Load Connection String
         var rawConnectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING")
             ?? configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
@@ -235,7 +335,7 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
             parameters,
             connectionString,
             providerType,
-            DefaultSqlTimeoutSeconds,
+            _sqlTimeoutSeconds,
             context?.CancellationToken ?? CancellationToken.None);
 
         var resultList = results.ToList();
@@ -249,21 +349,22 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
         appendLog?.Invoke("[CS] Compiling and executing C# script...");
 
         // Define a restricted set of allowed assemblies and namespaces
-        var options = ScriptOptions.Default
-            .WithReferences(
-                typeof(object).Assembly, // mscorlib / System.Runtime
-                typeof(System.Linq.Enumerable).Assembly,
-                typeof(System.Collections.Generic.List<>).Assembly,
-                typeof(RuleExecutionContext).Assembly
-            )
-            .WithImports(
-                "System",
-                "System.Collections.Generic",
-                "System.Linq",
-                "System.Text",
-                "System.Threading.Tasks",
-                "EtlAnalytics.RulesEngine.Models"
-            );
+        var options = ScriptOptions.Default;
+
+        var references = _scriptReferences
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .ToArray();
+        options = options.WithImports(_scriptImports);
+        options = references.Length > 0
+            ? options.WithReferences(references)
+            : options.WithReferences(DefaultScriptReferences);
+        var imports = _scriptImports
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .ToArray();
+        options = options.WithImports(imports.Length > 0 ? imports : DefaultScriptImports);
+
 
         // Add reference to the assembly containing TContext if it's different and not already added
         if (typeof(TContext).Assembly != typeof(RuleExecutionContext).Assembly)
@@ -271,7 +372,7 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
             options = options.AddReferences(typeof(TContext).Assembly);
         }
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(DefaultScriptTimeoutSeconds));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(_scriptTimeoutSeconds));
         if (globals != null)
         {
             globals.CancellationToken = cts.Token;
@@ -292,8 +393,8 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
         }
         catch (OperationCanceledException)
         {
-            appendLog?.Invoke($"[ERR] Script execution timed out after {DefaultScriptTimeoutSeconds} seconds.");
-            throw new TimeoutException($"The C# script exceeded the maximum execution time of {DefaultScriptTimeoutSeconds} seconds.");
+            appendLog?.Invoke($"[ERR] Script execution timed out after {_scriptTimeoutSeconds} seconds.");
+            throw new TimeoutException($"The C# script exceeded the maximum execution time of {_scriptTimeoutSeconds} seconds.");
         }
         catch (CompilationErrorException ex)
         {

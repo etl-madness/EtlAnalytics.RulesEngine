@@ -30,7 +30,7 @@ To prevent unauthorized database modifications, SQL rules are scanned for forbid
 - Connection strings retrieved from the database or configuration are expected to be encrypted.
 
 ### 2.3 SQL Parameters
-Every SQL rule is automatically injected with the following JSON parameters:
+Every SQL rule is automatically provided with the following JSON parameters:
 - `PreviousResultJson`: The JSON-serialized result of the previous rule in the bundle.
 - `StepResultsJson`: A JSON object containing results from all previous steps in the bundle.
 

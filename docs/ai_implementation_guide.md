@@ -40,7 +40,7 @@ Rules can read `globals.PreviousResult` or look up specific results in `globals.
 SQL results are returned as `IEnumerable<dynamic>`. C# rules can then process this data.
 
 ### C# to SQL Data Passing
-The engine injects `PreviousResultJson` and `StepResultsJson` as parameters into every SQL execution.
+The engine passes `PreviousResultJson` and `StepResultsJson` as parameters into every SQL execution.
 
 ## 4. Multi-Database Support
 
@@ -51,16 +51,43 @@ The engine passes the `ProviderType` (e.g., "SqlServer", "Postgres") to the `ISq
 AI agents generating rules must adhere to these constraints to avoid execution errors.
 
 ### C# Scripting Restrictions
-- **Timeout**: Hard-coded to **10 seconds**.
+- **Default Timeout**: **10 seconds**.
+- **Override Keys**: `RulesEngine:ScriptTimeoutSeconds` (preferred), `RulesEngine:ScriptTimeout` (fallback).
 - **Namespace Whitelist**:
   - `System`, `System.Linq`, `System.Collections.Generic`
   - `System.Text`, `System.Threading.Tasks`
 - **Forbidden**: `System.IO`, `System.Net`, `System.Diagnostics`, `System.Reflection`.
 
 ### T-SQL Sandboxing
-- **Timeout**: Hard-coded to **30 seconds**.
-- **Blacklisted Keywords**: `DROP`, `TRUNCATE`, `DELETE`, `UPDATE`, `INSERT`, `CREATE`, `ALTER`, `EXEC`, `EXECUTE`, `xp_cmdshell`, `sys.`, `information_schema`.
-- **Reference**: For instructions on how to modify this blacklist in the source code, see [forbidden_keywords_modification.md](file:///C:/Users/U00001/source/repos/etl-madness/EtlAnalytics.RulesEngine/docs/forbidden_keywords_modification.md).
+- **Default Timeout**: **30 seconds**.
+- **Override Keys**: `RulesEngine:SqlTimeoutSeconds` (preferred), `RulesEngine:SqlTimeout` (fallback), `RulesEngine:CommandTimeout` (fallback).
+- **Forbidden SQL Keywords (Default)**: `DROP`, `TRUNCATE`, `DELETE`, `UPDATE`, `INSERT`, `GRANT`, `REVOKE`, `CREATE`, `ALTER`, `xp_cmdshell`, `sys.`, `information_schema`.
+- **Override Keywords**: Set `RulesEngine:ForbiddenSqlKeywords` to replace the default list.
+- **Reference**: For full details on forbidden keywords and C# script sandbox customization, see [forbidden_keywords_modification.md](forbidden_keywords_modification.md).
+
+### Security and Timeout Override Example
+The engine reads values from `IConfiguration` at startup. If the configured timeout value is missing, invalid, or `<= 0`, the engine falls back to defaults (10s C#, 30s SQL).
+
+```json
+{
+  "RulesEngine": {
+    "SqlTimeoutSeconds": 60,
+    "ScriptTimeoutSeconds": 15,
+    "ForbiddenSqlKeywords": [
+      "DROP",
+      "TRUNCATE",
+      "DELETE",
+      "UPDATE",
+      "INSERT",
+      "ALTER",
+      "CREATE",
+      "xp_cmdshell",
+      "sys.",
+      "information_schema"
+    ]
+  }
+}
+```
 
 ## 6. Integration Guide
 
@@ -89,9 +116,15 @@ services.AddScoped<BusinessRuleEngine<MyCustomContext>>();
 (Unchanged from previous versions)
 
 ## 8. T-SQL Rule Development Patterns
-SQL rules are executed via the registered `ISqlRuleExecutor`. By default, this supports Dapper-style parameter injection (`@PreviousResultJson`).
+SQL rules are executed via the registered `ISqlRuleExecutor`. By default, this supports Dapper-style parameter binding (`@PreviousResultJson`).
 
 ## 9. Configuration Keys
 The `AesEncryptionService` expects:
 - Environment Variable: `DB_ENCRYPTION_KEY`
 - OR Configuration: `Security:EncryptionKey`
+
+The `BusinessRuleEngine` also supports:
+- `RulesEngine:SqlTimeoutSeconds` (or `RulesEngine:SqlTimeout`, `RulesEngine:CommandTimeout`)
+- `RulesEngine:ScriptTimeoutSeconds` (or `RulesEngine:ScriptTimeout`)
+- `RulesEngine:ForbiddenSqlKeywords`
+- `RulesEngine:WithReferences`, `RulesEngine:WithImports`

@@ -1,8 +1,9 @@
-# EtlAnalytics.RulesEngine - Version 2.0.0 (Multi-Targeted) 🚀
+# EtlAnalytics.RulesEngine - Version 2.0.1 (Multi-Targeted) 🚀
 
 This package targets both **.NET 8** and **.NET 10**, allowing you to use the latest framework features while maintaining compatibility with stable environments.
 
 Welcome to the **EtlAnalytics.RulesEngine**! If you're new to the concept of a "Rules Engine," think of this library as a way to let your users (or yourself) change how your program behaves without having to rewrite or redeploy the whole application.
+
 
 ---
 | If the user wants to... | Use the Core Package | Use the Dapper Package |
@@ -15,17 +16,21 @@ Welcome to the **EtlAnalytics.RulesEngine**! If you're new to the concept of a "
 
 
 > [!NOTE]
-> ### 🤖 AI Development Support
+> ### Source Code 
+> - **Version in master branch may be ahead of nuget releases.**
+> ### AI Development Support
 > This codebase includes structured documentation designed for AI consumption. If you are an AI agent, please prioritize scanning these documents:
-> - **[AI Implementation Guide](./docs/ai_implementation_guide.md)**: Technical reference for integration, sandboxing constraints, and data-passing patterns.
-> - **[Integration Example](./docs/Example.md)**: Full C# example showing DI setup and usage in `Program.cs`.
+> - **[AI Implementation Guide](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/ai_implementation_guide.md)**: Technical reference for integration, sandboxing constraints, and data-passing patterns.
+> - **[Integration Example](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/Example.md)**: Full C# example showing DI setup and usage in `Program.cs`.
 > - **[BusinessRulesEngineExample Project](https://github.com/etl-madness/BusinessRulesEngineExample)**: A full example project demonstrating the usage of the rules engine in a console application.
 > - **[Example Rules Engine Editor and Runner](https://github.com/etl-madness/BusinessRulesEngineExample)**: A Radzen Blazor Server based application for editing and running rules in a web interface.
-> - **[ExampleSimple.md](./docs/ExampleSimple.md)**: A simplified, single-file example demonstrating basic usage of the rules engine in a console application.
-> - **[BUSINESS_RULES.md](./docs/BUSINESS_RULES.md)**: Example Business Rules documentation
-> - **[DEVELOPERS_GUIDE.md](./docs/DEVELOPERS_GUIDE.md)**: Developers Guide.
-> - **[Security Blacklist Modification](./docs/forbidden_keywords_modification.md)**: Instructions for managing the SQL security sandbox.
-> - **[Source Code](https://github.com/etl-madness/EtlAnalytics.RulesEngine)**: Release source code for version 2.0.0.
+> - **[ExampleSimple.md](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/ExampleSimple.md)**: A simplified, single-file example demonstrating basic usage of the rules engine in a console application.
+> - **[ExampleSimpleXML.md](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/ExampleSimpleXML.md)**: A single-file console example demonstrating how to load business rules from an XML file (`rules.xml`) using an `XmlRuleStore`.
+> - **[BUSINESS_USE_CASES.md](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/BUSINESS_USE_CASES.md)**: Real-world business use cases including Zero-Day exploit remediation, fraud detection, and dynamic pricing.
+> - **[BUSINESS_RULES.md](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/BUSINESS_RULES.md)**: Example Business Rules documentation
+> - **[DEVELOPERS_GUIDE.md](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/DEVELOPERS_GUIDE.md)**: Developers Guide.
+> - **[Security Blacklist Modification](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/forbidden_keywords_modification.md)**: Instructions for managing the SQL security sandbox.
+> - **[Source Code](https://github.com/etl-madness/EtlAnalytics.RulesEngine)**: Release source code for version 2.0.1.
 
 ---
 
