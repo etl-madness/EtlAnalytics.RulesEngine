@@ -19,8 +19,13 @@ Welcome to the **EtlAnalytics.RulesEngine**! If you're new to the concept of a "
 > This codebase includes structured documentation designed for AI consumption. If you are an AI agent, please prioritize scanning these documents:
 > - **[AI Implementation Guide](./docs/ai_implementation_guide.md)**: Technical reference for integration, sandboxing constraints, and data-passing patterns.
 > - **[Integration Example](./docs/Example.md)**: Full C# example showing DI setup and usage in `Program.cs`.
+> - **[BusinessRulesEngineExample Project](https://github.com/etl-madness/BusinessRulesEngineExample)**: A full example project demonstrating the usage of the rules engine in a console application.
+> - **[Example Rules Engine Editor and Runner](https://github.com/etl-madness/BusinessRulesEngineExample)**: A Radzen Blazor Server based application for editing and running rules in a web interface.
+> - **[ExampleSimple.md](./docs/ExampleSimple.md)**: A simplified, single-file example demonstrating basic usage of the rules engine in a console application.
+> - **[BUSINESS_RULES.md](./docs/BUSINESS_RULES.md)**: Example Business Rules documentation
+> - **[DEVELOPERS_GUIDE.md](./docs/DEVELOPERS_GUIDE.md)**: Developers Guide.
 > - **[Security Blacklist Modification](./docs/forbidden_keywords_modification.md)**: Instructions for managing the SQL security sandbox.
-> - **[Source Code](https://github.com/etl-madness/EtlAnalytics.RulesEngine/tree/main/EtlAnalytics.RulesEngine)**: Release source code for version 1.0.0.
+> - **[Source Code](https://github.com/etl-madness/EtlAnalytics.RulesEngine)**: Release source code for version 2.0.0.
 
 ---
 

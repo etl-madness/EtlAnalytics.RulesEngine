@@ -10,7 +10,7 @@ namespace EtlAnalytics.RulesEngine.Models;
 public class RuleExecutionContext
 {
     /// <summary>Gets or sets the time the execution started.</summary>
-    public DateTime ExecutionTime { get; set; } = DateTime.Now;
+    public DateTime ExecutionTime { get; set; } = DateTime.UtcNow;
     /// <summary>Gets or sets the result of the immediately preceding rule in a bundle.</summary>
     public object? PreviousResult { get; set; }
     /// <summary>Gets or sets a dictionary of results from all previous steps in the current bundle, keyed by sequence order.</summary>
