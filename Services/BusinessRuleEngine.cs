@@ -23,12 +23,14 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
     private const int DefaultScriptTimeoutSeconds = 10;
     private const int DefaultSqlTimeoutSeconds = 30;
 
-    private static readonly string[] ForbiddenSqlKeywords = 
-    { 
-        "DROP", "TRUNCATE", "DELETE", "UPDATE", "INSERT", 
-        "GRANT", "REVOKE", "ALTER", "CREATE", "EXEC", "EXECUTE",
+    private static readonly string[] DefaultForbiddenSqlKeywords =
+    {
+        "DROP", "TRUNCATE", "DELETE", "UPDATE", "INSERT",
+        "GRANT", "REVOKE", "ALTER", "CREATE",
         "xp_cmdshell", "sys.", "information_schema"
     };
+
+    private readonly string[] _forbiddenKeywords;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="BusinessRuleEngine{TContext}"/> class.
@@ -38,24 +40,36 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
     /// <param name="sqlExecutor">The executor used for running SQL rules.</param>
     /// <param name="encryptionService">The service used for decrypting sensitive data.</param>
     public BusinessRuleEngine(
-        IConfiguration configuration, 
-        IBusinessRuleStore ruleStore, 
+        IConfiguration configuration,
+        IBusinessRuleStore ruleStore,
         ISqlRuleExecutor sqlExecutor,
         IEncryptionService encryptionService)
     {
         _ruleStore = ruleStore;
         _sqlExecutor = sqlExecutor;
         _encryptionService = encryptionService;
+
+        // 1. Load Forbidden Keywords
+        var configKeywords = configuration.GetSection("RulesEngine:ForbiddenSqlKeywords")
+            .GetChildren()
+            .Select(x => x.Value)
+            .Where(x => x != null)
+            .Cast<string>()
+            .ToArray();
+            
+        _forbiddenKeywords = configKeywords.Length > 0 ? configKeywords : DefaultForbiddenSqlKeywords;
+
+        // 2. Load Connection String
         var rawConnectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING")
             ?? configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
-        
+
         // Assume default connection string might be encrypted as well
-        try 
+        try
         {
             _connectionString = _encryptionService.Decrypt(rawConnectionString);
         }
-        catch 
+        catch
         {
             // If decryption fails, assume it's plain text (fallback for legacy or dev)
             _connectionString = rawConnectionString;
@@ -141,10 +155,10 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
             }
 
             appendLog?.Invoke($"[BUNDLE] Step {item.SequenceOrder}: {rule.Name}");
-            
+
             // Pipe results
             baseContext.PreviousResult = lastResult;
-            
+
             try
             {
                 lastResult = await ExecuteRuleAsync(rule, baseContext, appendLog);
@@ -173,9 +187,9 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
             if (dbConn != null)
             {
                 appendLog?.Invoke($"[SQL] Using specific connection: {dbConn.Name} ({dbConn.ProviderType})");
-                
+
                 string decryptedConn;
-                try 
+                try
                 {
                     decryptedConn = _encryptionService.Decrypt(dbConn.ConnectionString);
                 }
@@ -198,9 +212,9 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
 
         // Basic Query Validation
         var upperCode = rule.Code.ToUpperInvariant();
-        foreach (var keyword in ForbiddenSqlKeywords)
+        foreach (var keyword in _forbiddenKeywords)
         {
-            if (upperCode.Contains(keyword))
+            if (upperCode.Contains(keyword.ToUpperInvariant()))
             {
                 appendLog?.Invoke($"[SECURITY ALERT] T-SQL rule '{rule.Name}' contains forbidden keyword: {keyword}. Execution blocked.");
                 throw new SecurityException($"Forbidden SQL keyword detected: {keyword}");
@@ -209,7 +223,7 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
 
         var parameters = new Dictionary<string, object>();
         var jsonOptions = new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
-        
+
         string previousJson = context != null ? JsonSerializer.Serialize(context.PreviousResult, jsonOptions) : "[]";
         string stepResultsJson = context != null ? JsonSerializer.Serialize(context.StepResults, jsonOptions) : "{}";
 
@@ -223,9 +237,9 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
             providerType,
             DefaultSqlTimeoutSeconds,
             context?.CancellationToken ?? CancellationToken.None);
-        
+
         var resultList = results.ToList();
-        
+
         appendLog?.Invoke($"[SQL] Execution completed. {resultList.Count} rows returned.");
         return resultList;
     }
@@ -267,7 +281,7 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
         {
             // Evaluate script with timeout and restricted options
             var result = await CSharpScript.EvaluateAsync(code, options, globals, typeof(TContext), cts.Token);
-            
+
             if (cts.Token.IsCancellationRequested)
             {
                 throw new OperationCanceledException(cts.Token);
