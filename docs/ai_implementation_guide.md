@@ -40,7 +40,7 @@ Rules can read `globals.PreviousResult` or look up specific results in `globals.
 SQL results are returned as `IEnumerable<dynamic>`. C# rules can then process this data.
 
 ### C# to SQL Data Passing
-The engine injects `PreviousResultJson` and `StepResultsJson` as parameters into every SQL execution.
+The engine passes `PreviousResultJson` and `StepResultsJson` as parameters into every SQL execution.
 
 ## 4. Multi-Database Support
 
@@ -60,7 +60,7 @@ AI agents generating rules must adhere to these constraints to avoid execution e
 ### T-SQL Sandboxing
 - **Timeout**: Hard-coded to **30 seconds**.
 - **Blacklisted Keywords**: `DROP`, `TRUNCATE`, `DELETE`, `UPDATE`, `INSERT`, `CREATE`, `ALTER`, `EXEC`, `EXECUTE`, `xp_cmdshell`, `sys.`, `information_schema`.
-- **Reference**: For instructions on how to modify this blacklist in the source code, see [forbidden_keywords_modification.md](file:///C:/Users/U00001/source/repos/etl-madness/EtlAnalytics.RulesEngine/docs/forbidden_keywords_modification.md).
+- **Reference**: For instructions on how to modify this blacklist in the source code, see [forbidden_keywords_modification.md](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/forbidden_keywords_modification.md).
 
 ## 6. Integration Guide
 
@@ -89,7 +89,7 @@ services.AddScoped<BusinessRuleEngine<MyCustomContext>>();
 (Unchanged from previous versions)
 
 ## 8. T-SQL Rule Development Patterns
-SQL rules are executed via the registered `ISqlRuleExecutor`. By default, this supports Dapper-style parameter injection (`@PreviousResultJson`).
+SQL rules are executed via the registered `ISqlRuleExecutor`. By default, this supports Dapper-style parameter binding (`@PreviousResultJson`).
 
 ## 9. Configuration Keys
 The `AesEncryptionService` expects:

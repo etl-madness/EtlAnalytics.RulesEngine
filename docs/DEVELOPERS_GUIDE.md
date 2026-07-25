@@ -61,6 +61,7 @@ You can customize the forbidden keywords list via the `IConfiguration` provider 
 ```json
 {
   "RulesEngine": {
+    "SqlTimeoutSeconds": 60,
     "ForbiddenSqlKeywords": [
       "DROP",
       "TRUNCATE",
@@ -79,9 +80,47 @@ The keywords are checked case-insensitively. If any forbidden keyword is detecte
 
 ---
 
-## 3. Extending the Engine
+## 3. C# Script Security Sandbox (References & Imports)
 
-### 3.1 Custom Contexts
+The C# scripting engine uses Roslyn `ScriptOptions` to control assembly references (`WithReferences`) and namespace imports (`WithImports`).
+
+### 3.1 Default References & Imports
+By default, script execution is restricted to core system assemblies and model namespaces:
+- **Default References**: `System.Runtime`, `System.Linq`, `System.Collections`, and `EtlAnalytics.RulesEngine`.
+- **Default Imports**: `System`, `System.Collections.Generic`, `System.Linq`, `System.Text`, `System.Threading.Tasks`, and `EtlAnalytics.RulesEngine.Models`.
+
+### 3.2 Customizing References, Imports, and Timeouts
+You can customize the allowed assembly references, imports, and script execution timeout via the `IConfiguration` provider (e.g., in `appsettings.json`).
+
+**appsettings.json:**
+```json
+{
+  "RulesEngine": {
+    "SqlTimeoutSeconds": 60,
+    "ScriptTimeoutSeconds": 15,
+    "WithReferences": [
+      "System.Runtime",
+      "System.Linq",
+      "System.Text.Json"
+    ],
+    "WithImports": [
+      "System",
+      "System.Collections.Generic",
+      "System.Linq",
+      "System.Text.Json"
+    ]
+  }
+}
+```
+
+> [!NOTE]
+> The engine accepts `SqlTimeoutSeconds` (or `SqlTimeout` / `CommandTimeout`) for SQL execution timeouts, and `ScriptTimeoutSeconds` (or `ScriptTimeout`) for C# script timeouts.
+
+---
+
+## 4. Extending the Engine
+
+### 4.1 Custom Contexts
 Always inherit from `RuleExecutionContext` to provide your rules with application-specific data and services.
 
 ```csharp
@@ -91,7 +130,7 @@ public class MyAppContext : RuleExecutionContext {
 }
 ```
 
-### 3.2 Custom SQL Executors
+### 4.2 Custom SQL Executors
 If you need to use something other than Dapper (e.g., Entity Framework), implement the `ISqlRuleExecutor` interface and register it in your Dependency Injection container.
 
 ```csharp
