@@ -6,13 +6,12 @@ This guide provides technical instructions for developers integrating or extendi
 
 Before extending the engine, understand the architectural split between the Core library and the Dapper extension.
 
-| Feature | EtlAnalytics.RulesEngine (Core) | Core + RulesEngine.Dapper |
-| :--- | :--- | :--- |
-| **Logic Engine** | Orchestrates C# & SQL execution. | Inherited from Core. |
-| **SQL Execution** | Abstraction only (`ISqlRuleExecutor`). | Implemented via Dapper. |
-| **Database Support** | Agnostic. | SQL Server, PostgreSQL, MySQL. |
-| **Data Piping** | Logic provided in `BusinessRuleEngine`. | Handled automatically by `DapperSqlRuleExecutor`. |
-| **Security** | Global keyword blacklist logic. | Enforces Core security rules during execution. |
+| Feature | EtlAnalytics.RulesEngine (Core) | Core + RulesEngine.Dapper | Core + RulesEngine.Javascript |
+| :--- | :--- | :--- | :--- |
+| **Logic Engine** | Orchestrates script & SQL execution. | Inherited from Core. | Inherited from Core. |
+| **Execution** | Pluggable via `IRuleExecutor`. | TSQL implemented via Dapper. | Javascript implemented via Jint. |
+| **Database Support** | Agnostic. | SQL Server, PostgreSQL, MySQL. | N/A (JS only). |
+| **Security** | Global keyword blacklist logic. | Enforces Core security rules. | Enforces JS timeout limits. |
 
 The **Core package** is the "Brain" and contains all the logic for bundle orchestration and C# sandboxing. The **Dapper package** is the "Hands", providing the concrete implementation for database communication.
 
@@ -130,8 +129,29 @@ public class MyAppContext : RuleExecutionContext {
 }
 ```
 
-### 4.2 Custom SQL Executors
-If you need to use something other than Dapper (e.g., Entity Framework), implement the `ISqlRuleExecutor` interface and register it in your Dependency Injection container.
+### 4.2 Custom Rule Executors (Extending the Engine)
+You can extend the engine to support any language or protocol by implementing the `IRuleExecutor` interface.
+
+```csharp
+public class PythonRuleExecutor : IRuleExecutor
+{
+    public string RuleType => "Python";
+
+    public async Task<object?> ExecuteAsync(BusinessRule rule, RuleExecutionContext context, Type contextType, Action<string>? appendLog)
+    {
+        // Your logic to execute Python code here
+        return result;
+    }
+}
+```
+
+Register it in DI:
+```csharp
+services.AddSingleton<IRuleExecutor, PythonRuleExecutor>();
+```
+
+### 4.3 Custom SQL Executors
+If you need to use something other than Dapper (e.g., Entity Framework) for the TSQL type, implement the `ISqlRuleExecutor` interface. This is consumed by the built-in `TsqlRuleExecutor`.
 
 ```csharp
 public class EfSqlRuleExecutor : ISqlRuleExecutor {

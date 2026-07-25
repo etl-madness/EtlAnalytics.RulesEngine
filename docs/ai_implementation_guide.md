@@ -4,7 +4,7 @@ This document serves as a structured technical reference for AI agents to integr
 
 ## 1. Core Architecture
 
-The library is a database-agnostic business rules engine that supports two execution modes: **TSQL** and **C# Scripting**. It follows a standard Dependency Injection (DI) pattern and is decoupled from specific database execution libraries (like Dapper). It targets both **.NET 8** and **.NET 10**.
+The library is a database-agnostic business rules engine that supports a pluggable execution architecture. By default, it supports **TSQL** and **C# Scripting**, but it can be extended to support any language (e.g., **Javascript**) via external packages. It follows a standard Dependency Injection (DI) pattern and is decoupled from specific database execution libraries (like Dapper). It targets both **.NET 8** and **.NET 10**.
 
 ### Primary Service
 - **`BusinessRuleEngine<TContext>`**: The orchestrator. `TContext` must inherit from <see cref="RuleExecutionContext"/>.
@@ -12,14 +12,15 @@ The library is a database-agnostic business rules engine that supports two execu
 ### Required Interfaces
 Implementing these is mandatory for integration:
 - **`IBusinessRuleStore`**: Handles retrieval of `BusinessRule` and `BusinessRuleBundle` objects.
-- **`ISqlRuleExecutor`**: Abstracts the actual SQL execution. The engine calls this to fetch data from any source.
-- **`IRuleDbProvider`**: Provides `IDbConnection` instances. This is used by implementations of `ISqlRuleExecutor`.
+- **`IRuleExecutor`**: The core interface for extending the engine. Implement this to add support for new rule types (e.g., Python, Javascript).
+- **`ISqlRuleExecutor`**: Abstracts the actual SQL execution (used by the default TSQL executor).
+- **`IRuleDbProvider`**: Provides `IDbConnection` instances (used by implementations of `ISqlRuleExecutor`).
 - **`IEncryptionService`**: Handles AES-256 encryption/decryption of connection strings.
 
 ## 2. Model Definitions
 
 ### `BusinessRule`
-- `RuleType`: `TSQL` (0) or `CSharp` (1).
+- `RuleType`: A string constant. Built-in types are available in `RuleConstants`: `TSQL`, `CSharp`. Extensions add others like `Javascript`.
 - `Code`: The raw SQL query or C# script.
 - `ConnectionId`: Links to a `DbConnectionDefinition`. The engine resolves the correct provider and connection string before calling the `ISqlRuleExecutor`.
 
@@ -99,8 +100,11 @@ services.AddSingleton<IEncryptionService, AesEncryptionService>();
 services.AddScoped<IBusinessRuleStore, MySqlRuleStore>();
 services.AddScoped<IRuleDbProvider, SqlServerRuleDbProvider>();
 
-// Register the SQL Executor (can be moved to a separate project)
+// Register the SQL Executor (via Core or Dapper extension)
 services.AddScoped<ISqlRuleExecutor, DapperSqlRuleExecutor>();
+
+// Register any other executors (extensions)
+services.AddJavascriptRules(); 
 
 services.AddScoped<BusinessRuleEngine<MyCustomContext>>();
 ```

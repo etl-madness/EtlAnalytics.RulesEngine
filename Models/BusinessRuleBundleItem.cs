@@ -18,5 +18,5 @@ public class BusinessRuleBundleItem
     /// <summary>Gets or sets the name of the rule (helper property).</summary>
     public string? RuleName { get; set; }
     /// <summary>Gets or sets the type of the rule (helper property).</summary>
-    public RuleType? RuleType { get; set; }
+    public string? RuleType { get; set; }
 }

@@ -3,18 +3,9 @@
 This document explains how to manage and modify the list of prohibited SQL keywords as well as C# script references and imports in `EtlAnalytics.RulesEngine`.
 
 ## 1. Default Security Configuration
-The engine comes with built-in default forbidden keywords for SQL rules, and default assembly references and imports for C# rules.
+The engine defines default forbidden keywords for SQL rules, and default assembly references and imports for C# rules within its internal logic.
 
 **File Path**: [BusinessRuleEngine.cs](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/Services/BusinessRuleEngine.cs)
-
-```csharp
-private static readonly string[] DefaultForbiddenSqlKeywords = 
-{ 
-    "DROP", "TRUNCATE", "DELETE", "UPDATE", "INSERT", 
-    "GRANT", "REVOKE", "ALTER", "CREATE", 
-    "xp_cmdshell", "sys.", "information_schema"
-};
-```
 
 ## 2. Configuring Keywords via `appsettings.json`
 `BusinessRuleEngine` reads custom security keywords from your application's `IConfiguration` under the `RulesEngine:ForbiddenSqlKeywords` section. Configuring this section will override the default keyword blacklist without requiring code changes or recompilation.

@@ -135,11 +135,16 @@ services.AddSingleton<IConfiguration>(config);
 
 // 2. Register Rules Engine (Core)
 services.AddSingleton<IEncryptionService, AesEncryptionService>();
-services.AddScoped<BusinessRuleEngine<PizzaAppContext>>();
 
 // 3. Register Dapper Executor & DB Providers (Dapper Package)
 services.AddScoped<ISqlRuleExecutor, DapperSqlRuleExecutor>();
 services.AddScoped<IRuleDbProvider, SqlServerRuleDbProvider>();
+
+// 4. Register Executors (Default TSQL and CSharp are auto-added by engine if not registered)
+// But we can add extensions like Javascript here:
+// services.AddJavascriptRules(); 
+
+services.AddScoped<BusinessRuleEngine<PizzaAppContext>>();
 
 // 4. Register the Data Service and Rule Store
 services.AddScoped<IDataService>(sp => 

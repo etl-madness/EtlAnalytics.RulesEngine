@@ -9,6 +9,7 @@ Welcome to the **EtlAnalytics.RulesEngine**! If you're new to the concept of a "
 | If the user wants to... | Use the Core Package | Use the Dapper Package |
 | :--- | :---: | :---: |
 | Only run C# Script rules | ✅ | ❌ |
+| Run Javascript rules | ✅ (with extension) | ❌ |
 | Use your default SQL features | ✅ | ✅ |
 | Run SQL rules using Dapper | ✅ | ✅ |
 | Run SQL rules using Entity Framework | ✅ | ❌ (They implement their own ISqlRuleExecutor) |
@@ -63,11 +64,13 @@ By splitting the library into two packages, we provide maximum flexibility for d
 | Package | Purpose | Use When... |
 | :--- | :--- | :--- |
 | **EtlAnalytics.RulesEngine** | The "Brain". Handles logic, C# scripting, and rule orchestration. | Always. This is the core library. |
-| **EtlAnalytics.RulesEngine.Dapper** | The "Hands". Provides SQL execution using the Dapper library. | You want to run T-SQL rules using our default provider. |
+| **EtlAnalytics.RulesEngine.Dapper** | The "Hands (SQL)". Provides SQL execution using the Dapper library. | You want to run T-SQL rules using our default provider. |
+| **EtlAnalytics.RulesEngine.Javascript** | The "Hands (JS)". Provides Javascript execution using the Jint engine. | You want to run Javascript rules. |
 
 #### **When to use each?**
-*   **Core only**: Use this if you only need C# Script rules, or if you want to implement your own SQL execution logic (e.g., using Entity Framework or a custom API).
-*   **Core + Dapper**: Use this for the full experience. It allows you to run T-SQL, Postgres, and MySQL rules out-of-the-box using our pre-built `DapperSqlRuleExecutor`.
+*   **Core only**: Use this if you only need C# Script rules, or if you want to implement your own execution logic.
+*   **Core + Dapper**: Use this for the full experience with T-SQL, Postgres, and MySQL.
+*   **Core + Javascript**: Use this to enable browser-like scripting within your rules.
 
 ---
 
@@ -80,12 +83,12 @@ To execute SQL rules, you must register an implementation of `ISqlRuleExecutor`.
 builder.Services.AddSingleton<IEncryptionService, AesEncryptionService>();
 builder.Services.AddScoped<BusinessRuleEngine<PizzaAppContext>>();
 
-// Register the SQL Executor (e.g., Dapper)
+// 1. Register the SQL Executor (Optional)
 builder.Services.AddScoped<ISqlRuleExecutor, DapperSqlRuleExecutor>();
-
-// Register DB Providers used by the Executor
 builder.Services.AddScoped<IRuleDbProvider, SqlServerRuleDbProvider>();
-builder.Services.AddScoped<IRuleDbProvider, PostgresRuleDbProvider>();
+
+// 2. Register the Javascript Executor (Optional)
+builder.Services.AddJavascriptRules();
 ```
 
 ### 2. Custom Connection Providers
@@ -207,11 +210,11 @@ LIMIT 1;
 
 Before you start coding, here are the main parts of this engine:
 
-1.  **Business Rule**: A single piece of logic written in **T-SQL** or **C# Script**.
+1.  **Business Rule**: A single piece of logic written in **T-SQL**, **C# Script**, or **Javascript**.
 2.  **Rule Bundle**: A sequence of rules executed in order.
 3.  **Context**: Data passed to rules (e.g., "The current order").
 4.  **Store**: Where rules are saved (SQL, XML, API).
-5.  **Executor**: The component that actually runs the SQL (e.g., Dapper executor).
+5.  **Executor**: The component that actually runs the code (TSQL, C#, Javascript).
 
 ---
 
@@ -260,7 +263,7 @@ CREATE TABLE dbo.BusinessRules (
     Id INT IDENTITY(1,1) PRIMARY KEY,
     Name NVARCHAR(255) NOT NULL,
     Description NVARCHAR(MAX) NULL,
-    RuleType NVARCHAR(50) NOT NULL, -- 'TSQL' or 'CSharp'
+    RuleType NVARCHAR(50) NOT NULL, -- 'TSQL', 'CSharp', or 'Javascript'
     Code NVARCHAR(MAX) NOT NULL,
     ConnectionId INT NULL, -- Optional: Link to a specific database
     IsActive BIT NOT NULL DEFAULT 1,
@@ -340,7 +343,7 @@ CREATE TABLE BusinessRules (
     Id INT AUTO_INCREMENT PRIMARY KEY,
     Name VARCHAR(255) NOT NULL,
     Description TEXT NULL,
-    RuleType VARCHAR(50) NOT NULL,
+    RuleType VARCHAR(50) NOT NULL, -- 'TSQL', 'CSharp', or 'Javascript'
     Code TEXT NOT NULL,
     ConnectionId INT,
     IsActive BOOLEAN NOT NULL DEFAULT TRUE,
@@ -537,6 +540,17 @@ public class CheckoutService
 ---
 
 ## 📝 Writing Your First Rules
+
+### The Javascript Rule (New! ✨)
+If you prefer Javascript, you can write rules like this:
+```javascript
+// Properties from your PizzaAppContext are available via the 'context' object
+if (context.OrderTotal > 100) {
+    log("High value order in JS");
+    return context.OrderTotal * 0.1; // 10% discount
+}
+return 0;
+```
 
 ### The C# Script Rule
 In your database, you might save a rule with this code:

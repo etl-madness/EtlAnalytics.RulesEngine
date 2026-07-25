@@ -130,6 +130,10 @@ public class Program
         services.AddSingleton<IEncryptionService, AesEncryptionService>();
         services.AddScoped<ISqlRuleExecutor, DapperSqlRuleExecutor>();
         services.AddScoped<IRuleDbProvider, SqlServerRuleDbProvider>();
+
+        // Register Executors (Pass empty list to use defaults, or add extensions)
+        services.AddScoped<IEnumerable<IRuleExecutor>>(sp => Enumerable.Empty<IRuleExecutor>());
+
         services.AddScoped<BusinessRuleEngine<MyContext>>();
 
         services.AddScoped<IBusinessRuleStore>(sp =>

@@ -3,10 +3,13 @@ namespace EtlAnalytics.RulesEngine.Models;
 /// <summary>
 /// Specifies the type of logic contained within a business rule.
 /// </summary>
-public enum RuleType
+/// <summary>
+/// Contains constants for well-known rule types.
+/// </summary>
+public static class RuleConstants
 {
     /// <summary>Transact-SQL query.</summary>
-    TSQL,
+    public const string TSQL = "TSQL";
     /// <summary>C# script.</summary>
-    CSharp
+    public const string CSharp = "CSharp";
 }

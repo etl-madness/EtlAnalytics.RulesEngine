@@ -118,14 +118,13 @@ public class XmlRuleStore : IBusinessRuleStore
 
         if (element == null) return Task.FromResult<BusinessRule?>(null);
 
-        Enum.TryParse<RuleType>((string?)element.Element("RuleType"), out var ruleType);
         int? connectionId = (int?)element.Element("ConnectionId");
 
         var rule = new BusinessRule
         {
             Id = (int)element.Element("Id")!,
             Name = (string)element.Element("Name")!,
-            RuleType = ruleType,
+            RuleType = (string)element.Element("RuleType")!,
             Code = (string)element.Element("Code")!,
             ConnectionId = connectionId
         };
@@ -226,6 +225,10 @@ public class Program
         services.AddSingleton<IEncryptionService, AesEncryptionService>();
         services.AddScoped<ISqlRuleExecutor, DapperSqlRuleExecutor>();
         services.AddScoped<IRuleDbProvider, SqlServerRuleDbProvider>();
+        
+        // Register Executors (Pass empty list to use defaults, or add extensions)
+        services.AddScoped<IEnumerable<IRuleExecutor>>(sp => Enumerable.Empty<IRuleExecutor>());
+
         services.AddScoped<BusinessRuleEngine<MyContext>>();
 
         // Register XML Rule Store

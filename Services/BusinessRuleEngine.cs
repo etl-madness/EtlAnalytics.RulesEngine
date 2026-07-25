@@ -16,47 +16,8 @@ namespace EtlAnalytics.RulesEngine.Services;
 /// <typeparam name="TContext">The type of the execution context, which must inherit from <see cref="RuleExecutionContext"/>.</typeparam>
 public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
 {
-    private readonly IEncryptionService _encryptionService;
-    private readonly string _connectionString;
     private readonly IBusinessRuleStore _ruleStore;
-    private readonly ISqlRuleExecutor _sqlExecutor;
-    private const int DefaultScriptTimeoutSeconds = 10;
-    private const int DefaultSqlTimeoutSeconds = 30;
-
-    private static readonly string[] DefaultForbiddenSqlKeywords =
-    {
-        "DROP", "TRUNCATE", "DELETE", "UPDATE", "INSERT",
-        "GRANT", "REVOKE", "ALTER", "CREATE",
-        "xp_cmdshell", "sys.", "information_schema"
-    };
-
-    private static readonly System.Reflection.Assembly[] DefaultScriptReferences =
-    {
-        typeof(object).Assembly, // mscorlib / System.Runtime
-        typeof(System.Linq.Enumerable).Assembly,
-        typeof(System.Collections.Generic.List<>).Assembly,
-        typeof(System.Xml.Linq.XElement).Assembly,
-        typeof(System.Xml.XmlDocument).Assembly,
-        typeof(RuleExecutionContext).Assembly
-    };
-
-    private static readonly string[] DefaultScriptImports =
-    {
-        "System",
-        "System.Collections.Generic",
-        "System.Linq",
-        "System.Text",
-        "System.Threading.Tasks",
-        "System.Xml",
-        "System.Xml.Linq",
-        "EtlAnalytics.RulesEngine.Models"
-    };
-
-    private readonly string[] _forbiddenKeywords;
-    private readonly string[] _scriptReferences;
-    private readonly string[] _scriptImports;
-    private readonly int _sqlTimeoutSeconds;
-    private readonly int _scriptTimeoutSeconds;
+    private readonly IEnumerable<IRuleExecutor> _executors;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="BusinessRuleEngine{TContext}"/> class.
@@ -65,17 +26,42 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
     /// <param name="ruleStore">The store to retrieve rules and bundles from.</param>
     /// <param name="sqlExecutor">The executor used for running SQL rules.</param>
     /// <param name="encryptionService">The service used for decrypting sensitive data.</param>
+    /// <param name="executors">The collection of rule executors.</param>
     public BusinessRuleEngine(
         IConfiguration configuration,
         IBusinessRuleStore ruleStore,
         ISqlRuleExecutor sqlExecutor,
-        IEncryptionService encryptionService)
+        IEncryptionService encryptionService,
+        IEnumerable<IRuleExecutor> executors)
     {
         _ruleStore = ruleStore;
-        _sqlExecutor = sqlExecutor;
-        _encryptionService = encryptionService;
+        
+        // Combine provided executors with default ones if they are not already there
+        var executorList = executors.ToList();
 
-        // 1. Load Forbidden Keywords
+        // 1. Initialize Default TSQL Executor if not present
+        if (!executorList.Any(e => e.RuleType == RuleConstants.TSQL))
+        {
+            var forbiddenKeywords = LoadForbiddenKeywords(configuration);
+            var connectionString = LoadConnectionString(configuration, encryptionService);
+            var sqlTimeout = LoadSqlTimeout(configuration);
+            executorList.Add(new Executors.TsqlRuleExecutor(configuration, ruleStore, sqlExecutor, encryptionService, connectionString, forbiddenKeywords, sqlTimeout));
+        }
+
+        // 2. Initialize Default C# Executor if not present
+        if (!executorList.Any(e => e.RuleType == RuleConstants.CSharp))
+        {
+            var scriptReferences = LoadScriptReferences(configuration);
+            var scriptImports = LoadScriptImports(configuration);
+            var scriptTimeout = LoadScriptTimeout(configuration);
+            executorList.Add(new Executors.CSharpRuleExecutor(scriptReferences, scriptImports, scriptTimeout));
+        }
+
+        _executors = executorList;
+    }
+
+    private string[] LoadForbiddenKeywords(IConfiguration configuration)
+    {
         var configKeywords = configuration.GetSection("RulesEngine:ForbiddenSqlKeywords")
             .GetChildren()
             .Select(x => x.Value)
@@ -83,39 +69,61 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
             .Cast<string>()
             .ToArray();
 
-        _forbiddenKeywords = configKeywords.Length > 0 ? configKeywords : DefaultForbiddenSqlKeywords;
+        return configKeywords.Length > 0 ? configKeywords : new[]
+        {
+            "DROP", "TRUNCATE", "DELETE", "UPDATE", "INSERT",
+            "GRANT", "REVOKE", "ALTER", "CREATE",
+            "xp_cmdshell", "sys.", "information_schema"
+        };
+    }
 
-        // 2. Load Script References (WithReferences)
-        var configReferences = configuration.GetSection("RulesEngine:WithReferences")
+    private string LoadConnectionString(IConfiguration configuration, IEncryptionService encryptionService)
+    {
+        var rawConnectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING")
+            ?? configuration.GetConnectionString("DefaultConnection")
+            ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+
+        try
+        {
+            return encryptionService.Decrypt(rawConnectionString);
+        }
+        catch
+        {
+            return rawConnectionString;
+        }
+    }
+
+    private int LoadSqlTimeout(IConfiguration configuration)
+    {
+        var sqlTimeoutStr = configuration["RulesEngine:SqlTimeoutSeconds"]
+            ?? configuration["RulesEngine:SqlTimeout"]
+            ?? configuration["RulesEngine:CommandTimeout"];
+        return int.TryParse(sqlTimeoutStr, out var parsedSqlTimeout) && parsedSqlTimeout > 0
+            ? parsedSqlTimeout
+            : 30;
+    }
+
+    private int LoadScriptTimeout(IConfiguration configuration)
+    {
+        var scriptTimeoutStr = configuration["RulesEngine:ScriptTimeoutSeconds"]
+            ?? configuration["RulesEngine:ScriptTimeout"];
+        return int.TryParse(scriptTimeoutStr, out var parsedScriptTimeout) && parsedScriptTimeout > 0
+            ? parsedScriptTimeout
+            : 10;
+    }
+
+    private string[] LoadScriptReferences(IConfiguration configuration)
+    {
+        return configuration.GetSection("RulesEngine:WithReferences")
             .GetChildren()
             .Select(x => x.Value)
             .Where(x => x != null)
             .Cast<string>()
             .ToArray();
+    }
 
-        if (configReferences.Length == 0)
-        {
-            configReferences = configuration.GetSection("RulesEngine:ScriptReferences")
-                .GetChildren()
-                .Select(x => x.Value)
-                .Where(x => x != null)
-                .Cast<string>()
-                .ToArray();
-        }
-
-        if (configReferences.Length == 0)
-        {
-            configReferences = configuration.GetSection("RulesEngine:CSharpReferences")
-                .GetChildren()
-                .Select(x => x.Value)
-                .Where(x => x != null)
-                .Cast<string>()
-                .ToArray();
-        }
-
-        _scriptReferences = configReferences;
-
-        // 3. Load Script Imports (WithImports)
+    private string[] LoadScriptImports(IConfiguration configuration)
+    {
         var configImports = configuration.GetSection("RulesEngine:WithImports")
             .GetChildren()
             .Select(x => x.Value)
@@ -123,69 +131,22 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
             .Cast<string>()
             .ToArray();
 
-        if (configImports.Length == 0)
+        return configImports.Length > 0 ? configImports : new[]
         {
-            configImports = configuration.GetSection("RulesEngine:ScriptImports")
-                .GetChildren()
-                .Select(x => x.Value)
-                .Where(x => x != null)
-                .Cast<string>()
-                .ToArray();
-        }
-
-        if (configImports.Length == 0)
-        {
-            configImports = configuration.GetSection("RulesEngine:CSharpImports")
-                .GetChildren()
-                .Select(x => x.Value)
-                .Where(x => x != null)
-                .Cast<string>()
-                .ToArray();
-        }
-
-        _scriptImports = configImports.Length > 0 ? configImports : DefaultScriptImports;
-
-        // 4. Load Timeouts
-        var sqlTimeoutStr = configuration["RulesEngine:SqlTimeoutSeconds"]
-            ?? configuration["RulesEngine:SqlTimeout"]
-            ?? configuration["RulesEngine:CommandTimeout"];
-        _sqlTimeoutSeconds = int.TryParse(sqlTimeoutStr, out var parsedSqlTimeout) && parsedSqlTimeout > 0
-            ? parsedSqlTimeout
-            : DefaultSqlTimeoutSeconds;
-
-        var scriptTimeoutStr = configuration["RulesEngine:ScriptTimeoutSeconds"]
-            ?? configuration["RulesEngine:ScriptTimeout"];
-        _scriptTimeoutSeconds = int.TryParse(scriptTimeoutStr, out var parsedScriptTimeout) && parsedScriptTimeout > 0
-            ? parsedScriptTimeout
-            : DefaultScriptTimeoutSeconds;
-
-        // 5. Load Connection String
-        var rawConnectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING")
-            ?? configuration.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
-
-        // Assume default connection string might be encrypted as well
-        try
-        {
-            _connectionString = _encryptionService.Decrypt(rawConnectionString);
-        }
-        catch
-        {
-            // If decryption fails, assume it's plain text (fallback for legacy or dev)
-            _connectionString = rawConnectionString;
-        }
+            "System",
+            "System.Collections.Generic",
+            "System.Linq",
+            "System.Text",
+            "System.Threading.Tasks",
+            "System.Xml",
+            "System.Xml.Linq",
+            "EtlAnalytics.RulesEngine.Models"
+        };
     }
 
     /// <summary>
     /// Executes a single business rule asynchronously.
     /// </summary>
-    /// <param name="rule">The rule definition to execute.</param>
-    /// <param name="globals">The execution context containing variables and services for the rule.</param>
-    /// <param name="appendLog">Optional callback for logging execution details.</param>
-    /// <returns>The result of the rule execution.</returns>
-    /// <exception cref="NotSupportedException">Thrown when the rule type is not supported.</exception>
-    /// <exception cref="SecurityException">Thrown when a security violation is detected (e.g., forbidden SQL keywords).</exception>
-    /// <exception cref="TimeoutException">Thrown when a C# script execution times out.</exception>
     public async Task<object?> ExecuteRuleAsync(
         BusinessRule rule,
         TContext? globals = null,
@@ -210,18 +171,13 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
 
         try
         {
-            if (rule.RuleType == RuleType.TSQL)
+            var executor = _executors.FirstOrDefault(e => e.RuleType.Equals(rule.RuleType, StringComparison.OrdinalIgnoreCase));
+            if (executor == null)
             {
-                return await ExecuteTsqlAsync(rule, globals, appendLog);
+                throw new NotSupportedException($"Rule type '{rule.RuleType}' is not supported. Ensure the appropriate executor is registered.");
             }
-            else if (rule.RuleType == RuleType.CSharp)
-            {
-                return await ExecuteCSharpAsync(rule.Code, globals, appendLog);
-            }
-            else
-            {
-                throw new NotSupportedException($"Rule type {rule.RuleType} is not supported.");
-            }
+
+            return await executor.ExecuteAsync(rule, globals!, typeof(TContext), appendLog);
         }
         catch (Exception ex)
         {
@@ -233,10 +189,6 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
     /// <summary>
     /// Executes a business rule bundle asynchronously.
     /// </summary>
-    /// <param name="bundle">The bundle definition containing rules to execute.</param>
-    /// <param name="baseContext">The base execution context.</param>
-    /// <param name="appendLog">Optional callback for logging execution details.</param>
-    /// <returns>The result of the last rule executed in the bundle.</returns>
     public async Task<object?> ExecuteBundleAsync(
         BusinessRuleBundle bundle,
         TContext baseContext,
@@ -274,132 +226,5 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
 
         appendLog?.Invoke($"[BUNDLE] --- Bundle Finished: {bundle.Name} ---");
         return lastResult;
-    }
-
-    private async Task<object?> ExecuteTsqlAsync(BusinessRule rule, TContext? context, Action<string>? appendLog)
-    {
-        string connectionString = _connectionString;
-        string providerType = "SqlServer"; // Default fallback
-
-        if (rule.ConnectionId.HasValue)
-        {
-            var dbConn = await _ruleStore.GetDbConnectionByIdAsync(rule.ConnectionId.Value);
-            if (dbConn != null)
-            {
-                appendLog?.Invoke($"[SQL] Using specific connection: {dbConn.Name} ({dbConn.ProviderType})");
-
-                string decryptedConn;
-                try
-                {
-                    decryptedConn = _encryptionService.Decrypt(dbConn.ConnectionString);
-                }
-                catch (Exception ex)
-                {
-                    appendLog?.Invoke($"[WARN] Failed to decrypt connection string for {dbConn.Name}. Error: {ex.Message}. Attempting to use as-is.");
-                    decryptedConn = dbConn.ConnectionString;
-                }
-
-                connectionString = decryptedConn;
-                providerType = dbConn.ProviderType;
-            }
-            else
-            {
-                appendLog?.Invoke($"[WARN] Connection ID {rule.ConnectionId} not found. Falling back to default connection.");
-            }
-        }
-
-        appendLog?.Invoke("[SQL] Executing T-SQL script...");
-
-        // Basic Query Validation
-        var upperCode = rule.Code.ToUpperInvariant();
-        foreach (var keyword in _forbiddenKeywords)
-        {
-            if (upperCode.Contains(keyword.ToUpperInvariant()))
-            {
-                appendLog?.Invoke($"[SECURITY ALERT] T-SQL rule '{rule.Name}' contains forbidden keyword: {keyword}. Execution blocked.");
-                throw new SecurityException($"Forbidden SQL keyword detected: {keyword}");
-            }
-        }
-
-        var parameters = new Dictionary<string, object>();
-        var jsonOptions = new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
-
-        string previousJson = context != null ? JsonSerializer.Serialize(context.PreviousResult, jsonOptions) : "[]";
-        string stepResultsJson = context != null ? JsonSerializer.Serialize(context.StepResults, jsonOptions) : "{}";
-
-        parameters.Add("PreviousResultJson", previousJson);
-        parameters.Add("StepResultsJson", stepResultsJson);
-
-        var results = await _sqlExecutor.ExecuteAsync(
-            rule.Code,
-            parameters,
-            connectionString,
-            providerType,
-            _sqlTimeoutSeconds,
-            context?.CancellationToken ?? CancellationToken.None);
-
-        var resultList = results.ToList();
-
-        appendLog?.Invoke($"[SQL] Execution completed. {resultList.Count} rows returned.");
-        return resultList;
-    }
-
-    private async Task<object?> ExecuteCSharpAsync(string code, TContext? globals, Action<string>? appendLog)
-    {
-        appendLog?.Invoke("[CS] Compiling and executing C# script...");
-
-        // Define a restricted set of allowed assemblies and namespaces
-        var options = ScriptOptions.Default;
-
-        var references = _scriptReferences
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Select(x => x.Trim())
-            .ToArray();
-        options = options.WithImports(_scriptImports);
-        options = references.Length > 0
-            ? options.WithReferences(references)
-            : options.WithReferences(DefaultScriptReferences);
-        var imports = _scriptImports
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Select(x => x.Trim())
-            .ToArray();
-        options = options.WithImports(imports.Length > 0 ? imports : DefaultScriptImports);
-
-
-        // Add reference to the assembly containing TContext if it's different and not already added
-        if (typeof(TContext).Assembly != typeof(RuleExecutionContext).Assembly)
-        {
-            options = options.AddReferences(typeof(TContext).Assembly);
-        }
-
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(_scriptTimeoutSeconds));
-        if (globals != null)
-        {
-            globals.CancellationToken = cts.Token;
-        }
-
-        try
-        {
-            // Evaluate script with timeout and restricted options
-            var result = await CSharpScript.EvaluateAsync(code, options, globals, typeof(TContext), cts.Token);
-
-            if (cts.Token.IsCancellationRequested)
-            {
-                throw new OperationCanceledException(cts.Token);
-            }
-
-            appendLog?.Invoke("[CS] Execution completed successfully.");
-            return result;
-        }
-        catch (OperationCanceledException)
-        {
-            appendLog?.Invoke($"[ERR] Script execution timed out after {_scriptTimeoutSeconds} seconds.");
-            throw new TimeoutException($"The C# script exceeded the maximum execution time of {_scriptTimeoutSeconds} seconds.");
-        }
-        catch (CompilationErrorException ex)
-        {
-            appendLog?.Invoke($"[ERR] Compilation Error: {string.Join(Environment.NewLine, ex.Diagnostics)}");
-            throw;
-        }
     }
 }

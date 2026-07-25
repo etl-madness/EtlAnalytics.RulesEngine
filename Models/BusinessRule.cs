@@ -14,7 +14,7 @@ public class BusinessRule
     /// <summary>Gets or sets a description of the rule's purpose.</summary>
     public string Description { get; set; } = string.Empty;
     /// <summary>Gets or sets the type of the rule (e.g., TSQL, CSharp).</summary>
-    public RuleType RuleType { get; set; }
+    public string RuleType { get; set; } = string.Empty;
     /// <summary>Gets or sets the actual code or script to be executed.</summary>
     public string Code { get; set; } = string.Empty;
     /// <summary>Gets or sets the version number of the rule.</summary>

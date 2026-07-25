@@ -5,9 +5,9 @@ This document outlines the core business rules and logic implemented within the 
 ## 1. Rule Execution Framework
 
 ### 1.1 Supported Rule Types
-The engine supports two primary types of business rules:
 - **T-SQL**: SQL scripts executed against a database.
 - **C#**: Dynamic C# scripts executed within a restricted runtime environment.
+- **Javascript**: Logic scripts executed via the Jint engine (requires `EtlAnalytics.RulesEngine.Javascript` extension).
 
 ### 1.2 Execution Lifecycle
 - Rules can be executed individually or as part of a **Bundle**.
