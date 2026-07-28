@@ -11,9 +11,9 @@ public class RuleExecutionContext
 {
     /// <summary>Gets or sets the time the execution started.</summary>
     public DateTime ExecutionTime { get; set; } = DateTime.UtcNow;
-    /// <summary>Gets or sets the result of the immediately preceding rule in a bundle.</summary>
+    /// <summary>Gets or sets the result of the immediately preceding rule or sequence group in a bundle. If the preceding step was parallel, this will be a List&lt;object?&gt;.</summary>
     public object? PreviousResult { get; set; }
-    /// <summary>Gets or sets a dictionary of results from all previous steps in the current bundle, keyed by sequence order.</summary>
+    /// <summary>Gets or sets a dictionary of results from all previous steps in the current bundle, keyed by sequence order. For parallel groups, the value will be a List&lt;object?&gt;.</summary>
     public Dictionary<int, object?> StepResults { get; set; } = new();
     /// <summary>Gets or sets an optional logging action for rule scripts to use.</summary>
     public Action<string>? Log { get; set; }

@@ -12,8 +12,10 @@ This document outlines the core business rules and logic implemented within the 
 ### 1.2 Execution Lifecycle
 - Rules can be executed individually or as part of a **Bundle**.
 - **Result Piping**: In a bundle, the output of each rule is passed as the `PreviousResult` to the subsequent rule.
-- **State Management**: The execution context maintains a history of all step results within a bundle, indexed by their sequence order.
-- **Bundle Abort Policy**: If any step within a bundle fails (throws an exception), the entire bundle execution is terminated immediately.
+- **Parallel Execution**: Rules sharing the same `SequenceOrder` within a bundle are executed concurrently. The engine waits for all rules in the group to complete before proceeding.
+- **Result Aggregation**: Results from parallel rules are aggregated into a `List<object?>`.
+- **State Management**: The execution context maintains a history of all step results within a bundle, indexed by their sequence order. For parallel groups, the value stored is the aggregated list of results.
+- **Bundle Abort Policy**: If any step (sequential or parallel) within a bundle fails (throws an exception), the entire bundle execution is terminated immediately.
 
 ## 2. SQL Rule Constraints & Security
 
@@ -306,3 +308,35 @@ END
 
 > [!IMPORTANT]
 > **Authorized Write Operations**: While the engine blocks direct `INSERT`/`UPDATE` keywords to prevent arbitrary data modification, using a Stored Procedure via `EXEC` is the recommended pattern for authorized write operations. This ensures that logic remains encapsulated within the database schema.
+### 6.7 Parallel Execution & Result Aggregation (C#)
+This example shows how to perform multiple independent tasks in parallel and then process their combined results in a final step.
+
+#### **Step 1: SQL Rule (Sequence 1 - Fetch Products)**
+```sql
+SELECT ProductId, Name FROM Products WHERE Category = 'Electronics';
+```
+
+#### **Step 2: SQL Rule (Sequence 1 - Fetch Stock)**
+```sql
+SELECT ProductId, Quantity FROM Inventory WHERE WarehouseId = 10;
+```
+
+#### **Step 3: C# Rule (Sequence 2 - Join & Process)**
+```csharp
+// Name: ProcessParallelResults
+// PreviousResult contains a List<object> with results from Step 1 and Step 2
+var parallelResults = (List<object>)PreviousResult;
+var products = (List<dynamic>)parallelResults[0];
+var stock = (List<dynamic>)parallelResults[1];
+
+Log($"Processing {products.Count} products with corresponding stock data.");
+
+// Example join logic
+foreach(var p in products) {
+    var s = stock.FirstOrDefault(x => x.ProductId == p.ProductId);
+    if (s != null && s.Quantity < 5) {
+        await AlertService.TriggerLowStockAsync(p.Name, s.Quantity);
+    }
+}
+return "Parallel processing complete.";
+```

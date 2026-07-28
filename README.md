@@ -1,4 +1,4 @@
-# EtlAnalytics.RulesEngine - Version 2.0.1 (Multi-Targeted) 🚀
+# EtlAnalytics.RulesEngine - Version 2.1.0 (Multi-Targeted) 🚀
 
 This package targets both **.NET 8** and **.NET 10**, allowing you to use the latest framework features while maintaining compatibility with stable environments.
 
@@ -210,11 +210,29 @@ LIMIT 1;
 
 Before you start coding, here are the main parts of this engine:
 
-1.  **Business Rule**: A single piece of logic written in **T-SQL**, **C# Script**, or **Javascript**.
-2.  **Rule Bundle**: A sequence of rules executed in order.
-3.  **Context**: Data passed to rules (e.g., "The current order").
-4.  **Store**: Where rules are saved (SQL, XML, API).
-5.  **Executor**: The component that actually runs the code (TSQL, C#, Javascript).
+5. **Executor**: The component that actually runs the code (TSQL, C#, Javascript).
+6.  **Sequence Group**: A collection of rules within a bundle that share the same `SequenceOrder` and are executed in parallel.
+
+---
+
+## ⚡ Parallel Execution
+
+You can now execute multiple rules within a bundle concurrently by assigning them the same **`SequenceOrder`**.
+
+### How it Works
+1.  **Orchestration**: The engine groups rules by `SequenceOrder`.
+2.  **Concurrency**: If a group has more than one rule, they are executed in parallel using `Task.WhenAll`.
+3.  **Synchronization**: The engine waits for all rules in the current sequence group to complete before moving to the next sequence.
+4.  **Result Aggregation**: The results from a parallel group are aggregated into a `List<object?>`.
+
+### Accessing Parallel Results
+When a rule follows a parallel group, its `PreviousResult` will contain the list of results from all rules in that group.
+
+```csharp
+// C# Rule following a parallel group
+var parallelResults = (List<object>)PreviousResult;
+Log($"Collected {parallelResults.Count} results from parallel steps.");
+```
 
 ---
 
@@ -280,7 +298,7 @@ CREATE TABLE dbo.BusinessRuleBundleItems (
     Id INT IDENTITY(1,1) PRIMARY KEY,
     BundleId INT NOT NULL,
     RuleId INT NOT NULL,
-    SequenceOrder INT NOT NULL,
+    SequenceOrder INT NOT NULL, -- Items with the same SequenceOrder run in parallel
     CONSTRAINT FK_BundleItems_Bundle FOREIGN KEY (BundleId) REFERENCES dbo.BusinessRuleBundles(Id) ON DELETE CASCADE
 );
 ```
@@ -320,7 +338,7 @@ CREATE TABLE BusinessRuleBundleItems (
     Id SERIAL PRIMARY KEY,
     BundleId INT NOT NULL REFERENCES BusinessRuleBundles(Id) ON DELETE CASCADE,
     RuleId INT NOT NULL REFERENCES BusinessRules(Id),
-    SequenceOrder INT NOT NULL
+    SequenceOrder INT NOT NULL -- Items with the same SequenceOrder run in parallel
 );
 ```
 
@@ -360,7 +378,7 @@ CREATE TABLE BusinessRuleBundleItems (
     Id INT AUTO_INCREMENT PRIMARY KEY,
     BundleId INT NOT NULL,
     RuleId INT NOT NULL,
-    SequenceOrder INT NOT NULL,
+    SequenceOrder INT NOT NULL, -- Items with the same SequenceOrder run in parallel
     FOREIGN KEY (BundleId) REFERENCES BusinessRuleBundles(Id) ON DELETE CASCADE,
     FOREIGN KEY (RuleId) REFERENCES BusinessRules(Id)
 );

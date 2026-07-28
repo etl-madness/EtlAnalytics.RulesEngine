@@ -95,8 +95,12 @@ public class SqlRuleStore : IBusinessRuleStore
         if (bundle != null)
         {
             var items = await _dataService.QueryListAsync<BusinessRuleBundleItem>(
-                "SELECT * FROM BusinessRuleBundleItems WHERE BundleId = @Id ORDER BY SequenceOrder", 
-                new { Id = bundle.Id });
+                "SELECT * FROM BusinessRuleBundleItems WHERE BundleId = @Id ORDER BY SequenceOrder",
+                new
+                {
+                    Id = bundle.Id
+                });
+            // Note: Rules with the same SequenceOrder will be executed in parallel by the engine
             bundle.Items = items.ToList();
         }
         return bundle;

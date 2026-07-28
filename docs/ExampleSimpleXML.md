@@ -54,6 +54,8 @@ Place this `rules.xml` file in your application directory:
     </BusinessRuleBundle>
   </RuleBundles>
 
+  <!-- Rules with the same SequenceOrder will be executed in parallel -->
+
   <DbConnections>
     <DbConnectionDefinition>
       <Id>1</Id>

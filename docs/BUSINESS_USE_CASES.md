@@ -223,6 +223,22 @@ return new { MaskedEmail = rawEmail, Redacted = false };
 
 ---
 
+## 6. High-Performance Multi-Source Data Enrichment ⚡
+
+### Problem Statement
+In complex decision-making workflows, the engine often needs to gather data from multiple independent sources (e.g., internal databases, external APIs, and cache layers) before applying business logic. Executing these requests sequentially introduces unnecessary latency.
+
+### Solution
+By using **Parallel Execution** (assigning the same `SequenceOrder` to independent rules), the engine can fetch all required data concurrently. The final processing rule then receives an aggregated list of results, significantly reducing the total execution time of the bundle.
+
+### Workflow Example
+1.  **Rule 1 (SQL - Sequence 1)**: Fetch Customer Profile from Production DB.
+2.  **Rule 2 (SQL - Sequence 1)**: Fetch Recent Orders from Audit DB.
+3.  **Rule 3 (C# - Sequence 1)**: Fetch Credit Score from an external Web API.
+4.  **Rule 4 (C# - Sequence 2)**: Processes the aggregated `List<object?>` containing the profile, orders, and credit score to decide on a loan approval.
+
+---
+
 ## Summary of Benefits
 
 | Benefit | Description |
