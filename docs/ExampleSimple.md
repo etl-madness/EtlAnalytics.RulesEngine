@@ -81,6 +81,7 @@ public class SimpleRuleStore : IBusinessRuleStore
                 {
                     Id = bundle.Id
                 });
+            // Note: Rules with the same SequenceOrder will be executed in parallel by the engine
             bundle.Items = items.ToList();
         }
         return bundle;

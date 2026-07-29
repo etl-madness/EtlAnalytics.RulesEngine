@@ -197,29 +197,58 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
         appendLog?.Invoke($"[BUNDLE] --- Starting Bundle: {bundle.Name} ---");
         object? lastResult = null;
 
-        foreach (var item in bundle.Items.OrderBy(i => i.SequenceOrder))
+        var groups = bundle.Items
+            .GroupBy(i => i.SequenceOrder)
+            .OrderBy(g => g.Key);
+
+        foreach (var group in groups)
         {
-            var rule = await _ruleStore.GetBusinessRuleByIdAsync(item.RuleId);
-            if (rule == null)
-            {
-                appendLog?.Invoke($"[ERR] Rule ID {item.RuleId} not found. Skipping.");
-                continue;
-            }
+            int sequenceOrder = group.Key;
+            var items = group.ToList();
 
-            appendLog?.Invoke($"[BUNDLE] Step {item.SequenceOrder}: {rule.Name}");
-
-            // Pipe results
+            // Pipe results from the PREVIOUS group into the current one
             baseContext.PreviousResult = lastResult;
 
             try
             {
-                lastResult = await ExecuteRuleAsync(rule, baseContext, appendLog);
+                if (items.Count == 1)
+                {
+                    var item = items[0];
+                    var rule = await _ruleStore.GetBusinessRuleByIdAsync(item.RuleId);
+                    if (rule == null)
+                    {
+                        appendLog?.Invoke($"[ERR] Rule ID {item.RuleId} not found. Skipping.");
+                        continue;
+                    }
+
+                    appendLog?.Invoke($"[BUNDLE] Step {sequenceOrder}: {rule.Name}");
+                    lastResult = await ExecuteRuleAsync(rule, baseContext, appendLog);
+                }
+                else
+                {
+                    appendLog?.Invoke($"[BUNDLE] Step {sequenceOrder}: Executing {items.Count} rules in parallel.");
+
+                    var tasks = items.Select(async item =>
+                    {
+                        var rule = await _ruleStore.GetBusinessRuleByIdAsync(item.RuleId);
+                        if (rule == null)
+                        {
+                            appendLog?.Invoke($"[ERR] Rule ID {item.RuleId} not found.");
+                            return null;
+                        }
+                        return await ExecuteRuleAsync(rule, baseContext, appendLog);
+                    });
+
+                    var results = await Task.WhenAll(tasks);
+                    lastResult = results.ToList();
+                }
+
                 // Store in history
-                baseContext.StepResults[item.SequenceOrder] = lastResult;
+                baseContext.StepResults[sequenceOrder] = lastResult;
             }
             catch (Exception ex)
             {
-                appendLog?.Invoke($"[BUNDLE] [FATAL] Step failed: {ex.Message}. Aborting bundle.");
+                appendLog?.Invoke($"[BUNDLE] [FATAL] Step group {sequenceOrder} failed: {ex.Message}. Aborting bundle.");
                 break;
             }
         }

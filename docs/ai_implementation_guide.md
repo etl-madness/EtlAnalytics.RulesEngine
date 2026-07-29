@@ -30,12 +30,18 @@ Agents should inherit from this to pass custom data to rules.
 - `StepResults`: Dictionary of all previous results in a bundle (`sequenceOrder` -> `result`).
 - `CancellationToken`: Used to signal timeouts (10s for C#, 30s for SQL).
 
-## 3. Data Passing in Bundles (Sequence Execution)
+## 3. Data Passing and Orchestration
 
-The engine supports sequential execution of rules within a `BusinessRuleBundle`. Data is passed between steps automatically via the context.
+The engine supports both sequential and parallel execution of rules within a `BusinessRuleBundle`. Data is passed between steps automatically via the context.
+
+### Parallel Execution (Sequence Groups)
+- Rules sharing the same `SequenceOrder` are executed concurrently using `Task.WhenAll`.
+- Results from a parallel group are aggregated into a `List<object?>`.
+- The next step receives this list in `globals.PreviousResult`.
 
 ### C# to C# Data Passing
-Rules can read `globals.PreviousResult` or look up specific results in `globals.StepResults`.
+- Rules can read `globals.PreviousResult` or look up specific results in `globals.StepResults`.
+- For parallel steps, `PreviousResult` will be a `List<object?>`.
 
 ### SQL to C# Data Passing
 SQL results are returned as `IEnumerable<dynamic>`. C# rules can then process this data.

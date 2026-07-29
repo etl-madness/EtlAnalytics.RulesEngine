@@ -8,7 +8,7 @@ Before extending the engine, understand the architectural split between the Core
 
 | Feature | EtlAnalytics.RulesEngine (Core) | Core + RulesEngine.Dapper | Core + RulesEngine.Javascript |
 | :--- | :--- | :--- | :--- |
-| **Logic Engine** | Orchestrates script & SQL execution. | Inherited from Core. | Inherited from Core. |
+| **Logic Engine** | Orchestrates script & SQL execution, supporting parallel sequence groups. | Inherited from Core. | Inherited from Core. |
 | **Execution** | Pluggable via `IRuleExecutor`. | TSQL implemented via Dapper. | Javascript implemented via Jint. |
 | **Database Support** | Agnostic. | SQL Server, PostgreSQL, MySQL. | N/A (JS only). |
 | **Security** | Global keyword blacklist logic. | Enforces Core security rules. | Enforces JS timeout limits. |
@@ -160,3 +160,22 @@ public class EfSqlRuleExecutor : ISqlRuleExecutor {
     }
 }
 ```
+
+---
+
+## 5. Bundle Orchestration & Parallelism
+
+The `BusinessRuleEngine` uses a grouping strategy to handle rule execution within a bundle.
+
+### 5.1 Parallel Grouping
+Rules are grouped by their `SequenceOrder`. The engine iterates through these groups in ascending order.
+- **Single Item Groups**: Executed sequentially using `await ExecuteRuleAsync`.
+- **Multi-Item Groups**: Executed concurrently using `Task.WhenAll`.
+
+### 5.2 Internal Result Aggregation
+When executing a parallel group, the engine collects all results into a `List<object?>`. 
+- This list is then assigned to `baseContext.PreviousResult` for the next group.
+- The list is also stored in `baseContext.StepResults[sequenceOrder]`.
+
+### 5.3 Exception Handling
+The engine follows a "fail-fast" approach. If any rule in a parallel group throws an exception, the `Task.WhenAll` will propagate it, and the engine will catch it, log a `[FATAL]` error, and stop the bundle execution immediately.

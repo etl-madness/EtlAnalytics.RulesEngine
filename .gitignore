@@ -17,7 +17,7 @@ bld/
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
-
+/dist/
 # Visual Studio 2015/2017/2019/2022 cache/options directory
 .vs/
 # Uncomment if you use Visual Studio Code
