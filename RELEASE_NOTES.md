@@ -12,7 +12,10 @@
 
 ### 🛠️ Improvements
 - **Public Rule Executors**: Promoted `CSharpRuleExecutor` and `TsqlRuleExecutor` to `public` protection level to allow custom DI registration and direct host referencing.
-- **Developer Documentation**: Added [EXECUTION_TRACKING.md](docs/EXECUTION_TRACKING.md) guide and updated [README.md](README.md) with non-blocking API patterns and JSON state schemas.
+- **Architectural Diagrams & Documentation**:
+    - Added [ARCHITECTURE_OVERVIEW.md](docs/ARCHITECTURE_OVERVIEW.md) featuring Mermaid diagrams for system architecture, sequence orchestration, async tracking flow, ER schema, and security sandboxing.
+    - Added [PERSISTENT_EXECUTION_TRACKING.md](docs/PERSISTENT_EXECUTION_TRACKING.md) guide with SQL Server, PostgreSQL, and MySQL table schemas, Dapper `SqlBundleExecutionTracker` implementation, DI setup, and cleanup scripts.
+    - Added [EXECUTION_TRACKING.md](docs/EXECUTION_TRACKING.md) guide and updated [README.md](README.md) with non-blocking API patterns and parallel rule targeting examples (`[0]` vs `[1]`, rule lookup by name or ID).
 - **Automated Tests**: Added `ExecutionTrackingTests` suite covering pre-population, sequential and parallel status transitions, and failure state handling.
 
 ### ⚠️ Backward Compatibility
