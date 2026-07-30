@@ -1,5 +1,25 @@
 # Release Notes - EtlAnalytics.RulesEngine
 
+## [2.2.0] - 2026-07-30
+
+### 🚀 New Features
+- **Asynchronous Execution & Granular Status Tracking**:
+    - **Sequence & Rule Level Status Lifecycle**: Every sequence group and rule item (including parallel execution steps) transitions through granular status states: `Pending`, `Starting` (`InProgress`), `Completed`, `Failed`, or `Skipped`.
+    - **Thread-Safe Execution Tracker**: Introduced `IBundleExecutionTracker` and `InMemoryBundleExecutionTracker` to maintain real-time execution state snapshots.
+    - **Pre-Populated Execution Tree**: `tracker.CreateExecutionAsync` initializes all sequences and parallel rules as `Pending` prior to execution start, enabling accurate progress calculations (e.g. `% completed`).
+    - **Real-Time Progress Events**: Added `OnStatusChanged` event on `IBundleExecutionTracker` for live status change notifications.
+    - **Dependency Injection Extension**: Added `services.AddBusinessRulesEngineTracking()` extension method for easy registration.
+
+### 🛠️ Improvements
+- **Public Rule Executors**: Promoted `CSharpRuleExecutor` and `TsqlRuleExecutor` to `public` protection level to allow custom DI registration and direct host referencing.
+- **Developer Documentation**: Added [EXECUTION_TRACKING.md](docs/EXECUTION_TRACKING.md) guide and updated [README.md](README.md) with non-blocking API patterns and JSON state schemas.
+- **Automated Tests**: Added `ExecutionTrackingTests` suite covering pre-population, sequential and parallel status transitions, and failure state handling.
+
+### ⚠️ Backward Compatibility
+- **100% Backward Compatible**: Existing `ExecuteBundleAsync` method signatures remain intact. All state tracking parameters are optional.
+
+---
+
 ## [2.1.0] - 2026-07-27
 
 ### 🚀 New Features

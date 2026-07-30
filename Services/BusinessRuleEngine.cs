@@ -189,12 +189,52 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
     /// <summary>
     /// Executes a business rule bundle asynchronously.
     /// </summary>
-    public async Task<object?> ExecuteBundleAsync(
+    public Task<object?> ExecuteBundleAsync(
         BusinessRuleBundle bundle,
         TContext baseContext,
         Action<string>? appendLog = null)
     {
-        appendLog?.Invoke($"[BUNDLE] --- Starting Bundle: {bundle.Name} ---");
+        return ExecuteBundleAsync(bundle, baseContext, appendLog, tracker: null, executionId: null);
+    }
+
+    /// <summary>
+    /// Executes a business rule bundle asynchronously with optional real-time sequence and rule level status tracking.
+    /// </summary>
+    /// <param name="bundle">The business rule bundle to execute.</param>
+    /// <param name="baseContext">The execution context.</param>
+    /// <param name="appendLog">Optional delegate for receiving plain text log messages.</param>
+    /// <param name="tracker">Optional execution tracker instance to update status changes in real time.</param>
+    /// <param name="executionId">Optional execution identifier. If null and tracker is provided, a new execution entry will be created.</param>
+    /// <returns>The result of the final executed step in the bundle.</returns>
+    public async Task<object?> ExecuteBundleAsync(
+        BusinessRuleBundle bundle,
+        TContext baseContext,
+        Action<string>? appendLog,
+        IBundleExecutionTracker? tracker,
+        Guid? executionId = null)
+    {
+        Guid execId = executionId ?? Guid.NewGuid();
+
+        if (tracker != null)
+        {
+            var existing = await tracker.GetExecutionAsync(execId);
+            if (existing == null)
+            {
+                await tracker.CreateExecutionAsync(bundle, execId);
+            }
+            await tracker.UpdateBundleStatusAsync(execId, ExecutionStatus.Starting, $"Starting execution of bundle '{bundle.Name}'");
+        }
+
+        Action<string> log = msg =>
+        {
+            appendLog?.Invoke(msg);
+            if (tracker != null)
+            {
+                _ = tracker.AppendLogAsync(execId, msg);
+            }
+        };
+
+        log($"[BUNDLE] --- Starting Bundle: {bundle.Name} ---");
         object? lastResult = null;
 
         var groups = bundle.Items
@@ -209,38 +249,109 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
             // Pipe results from the PREVIOUS group into the current one
             baseContext.PreviousResult = lastResult;
 
+            if (tracker != null)
+            {
+                await tracker.UpdateSequenceStatusAsync(execId, sequenceOrder, ExecutionStatus.Starting, $"Starting sequence step #{sequenceOrder}");
+            }
+
             try
             {
                 if (items.Count == 1)
                 {
                     var item = items[0];
+                    if (tracker != null)
+                    {
+                        await tracker.UpdateRuleStatusAsync(execId, item.RuleId, sequenceOrder, ExecutionStatus.Starting);
+                    }
+
                     var rule = await _ruleStore.GetBusinessRuleByIdAsync(item.RuleId);
                     if (rule == null)
                     {
-                        appendLog?.Invoke($"[ERR] Rule ID {item.RuleId} not found. Skipping.");
+                        log($"[ERR] Rule ID {item.RuleId} not found. Skipping.");
+                        if (tracker != null)
+                        {
+                            await tracker.UpdateRuleStatusAsync(execId, item.RuleId, sequenceOrder, ExecutionStatus.Skipped, error: new KeyNotFoundException($"Rule ID {item.RuleId} not found"));
+                        }
                         continue;
                     }
 
-                    appendLog?.Invoke($"[BUNDLE] Step {sequenceOrder}: {rule.Name}");
-                    lastResult = await ExecuteRuleAsync(rule, baseContext, appendLog);
+                    log($"[BUNDLE] Step {sequenceOrder}: {rule.Name}");
+                    
+                    try
+                    {
+                        lastResult = await ExecuteRuleAsync(rule, baseContext, log);
+                        if (tracker != null)
+                        {
+                            await tracker.UpdateRuleStatusAsync(execId, item.RuleId, sequenceOrder, ExecutionStatus.Completed, result: lastResult);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        if (tracker != null)
+                        {
+                            await tracker.UpdateRuleStatusAsync(execId, item.RuleId, sequenceOrder, ExecutionStatus.Failed, error: ex);
+                        }
+                        throw;
+                    }
+
+                    if (tracker != null)
+                    {
+                        await tracker.UpdateSequenceStatusAsync(execId, sequenceOrder, ExecutionStatus.Completed, $"Sequence #{sequenceOrder} completed successfully");
+                    }
                 }
                 else
                 {
-                    appendLog?.Invoke($"[BUNDLE] Step {sequenceOrder}: Executing {items.Count} rules in parallel.");
+                    log($"[BUNDLE] Step {sequenceOrder}: Executing {items.Count} rules in parallel.");
+
+                    if (tracker != null)
+                    {
+                        await tracker.UpdateSequenceStatusAsync(execId, sequenceOrder, ExecutionStatus.Starting, $"Executing {items.Count} rules in parallel");
+                    }
 
                     var tasks = items.Select(async item =>
                     {
+                        if (tracker != null)
+                        {
+                            await tracker.UpdateRuleStatusAsync(execId, item.RuleId, sequenceOrder, ExecutionStatus.Starting);
+                        }
+
                         var rule = await _ruleStore.GetBusinessRuleByIdAsync(item.RuleId);
                         if (rule == null)
                         {
-                            appendLog?.Invoke($"[ERR] Rule ID {item.RuleId} not found.");
+                            log($"[ERR] Rule ID {item.RuleId} not found.");
+                            if (tracker != null)
+                            {
+                                await tracker.UpdateRuleStatusAsync(execId, item.RuleId, sequenceOrder, ExecutionStatus.Skipped, error: new KeyNotFoundException($"Rule ID {item.RuleId} not found"));
+                            }
                             return null;
                         }
-                        return await ExecuteRuleAsync(rule, baseContext, appendLog);
+
+                        try
+                        {
+                            var result = await ExecuteRuleAsync(rule, baseContext, log);
+                            if (tracker != null)
+                            {
+                                await tracker.UpdateRuleStatusAsync(execId, item.RuleId, sequenceOrder, ExecutionStatus.Completed, result: result);
+                            }
+                            return result;
+                        }
+                        catch (Exception ex)
+                        {
+                            if (tracker != null)
+                            {
+                                await tracker.UpdateRuleStatusAsync(execId, item.RuleId, sequenceOrder, ExecutionStatus.Failed, error: ex);
+                            }
+                            throw;
+                        }
                     });
 
                     var results = await Task.WhenAll(tasks);
                     lastResult = results.ToList();
+
+                    if (tracker != null)
+                    {
+                        await tracker.UpdateSequenceStatusAsync(execId, sequenceOrder, ExecutionStatus.Completed, $"Sequence #{sequenceOrder} parallel execution completed successfully");
+                    }
                 }
 
                 // Store in history
@@ -248,12 +359,26 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
             }
             catch (Exception ex)
             {
-                appendLog?.Invoke($"[BUNDLE] [FATAL] Step group {sequenceOrder} failed: {ex.Message}. Aborting bundle.");
+                log($"[BUNDLE] [FATAL] Step group {sequenceOrder} failed: {ex.Message}. Aborting bundle.");
+                if (tracker != null)
+                {
+                    await tracker.UpdateSequenceStatusAsync(execId, sequenceOrder, ExecutionStatus.Failed, ex.Message);
+                    await tracker.CompleteExecutionAsync(execId, ExecutionStatus.Failed, null, ex);
+                }
                 break;
             }
         }
 
-        appendLog?.Invoke($"[BUNDLE] --- Bundle Finished: {bundle.Name} ---");
+        log($"[BUNDLE] --- Bundle Finished: {bundle.Name} ---");
+        if (tracker != null)
+        {
+            var currentState = await tracker.GetExecutionAsync(execId);
+            if (currentState != null && currentState.Status != ExecutionStatus.Failed)
+            {
+                await tracker.CompleteExecutionAsync(execId, ExecutionStatus.Completed, lastResult);
+            }
+        }
+
         return lastResult;
     }
 }

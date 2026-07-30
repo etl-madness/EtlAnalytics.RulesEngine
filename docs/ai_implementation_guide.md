@@ -109,18 +109,22 @@ services.AddScoped<IRuleDbProvider, SqlServerRuleDbProvider>();
 // Register the SQL Executor (via Core or Dapper extension)
 services.AddScoped<ISqlRuleExecutor, DapperSqlRuleExecutor>();
 
+// Register Execution Tracking (for async monitoring)
+services.AddBusinessRulesEngineTracking();
+
 // Register any other executors (extensions)
 services.AddJavascriptRules(); 
 
 services.AddScoped<BusinessRuleEngine<MyCustomContext>>();
 ```
 
-### Execution Flow
+### Execution Flow & Asynchronous Monitoring
 1. Retrieve Rule/Bundle from Store.
 2. Initialize `TContext`.
-3. Call `ExecuteRuleAsync` or `ExecuteBundleAsync`.
-4. Engine decrypts connection strings and prepares parameters.
-5. Engine calls `ISqlRuleExecutor.ExecuteAsync` for SQL rules.
+3. (Optional) Call `tracker.CreateExecutionAsync(bundle)` to pre-populate `Pending` status tree.
+4. Call `ExecuteRuleAsync` or `ExecuteBundleAsync(bundle, context, appendLog, tracker, executionId)`.
+5. Engine updates granular sequence and rule statuses (`Pending` $\rightarrow$ `Starting` $\rightarrow$ `Completed` / `Failed` / `Skipped`) in `IBundleExecutionTracker`.
+6. Callers or web APIs poll `tracker.GetExecutionAsync(executionId)` or subscribe to `tracker.OnStatusChanged`.
 
 ## 7. C# Rule Development Patterns
 (Unchanged from previous versions)

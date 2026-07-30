@@ -17,6 +17,16 @@ This document outlines the core business rules and logic implemented within the 
 - **State Management**: The execution context maintains a history of all step results within a bundle, indexed by their sequence order. For parallel groups, the value stored is the aggregated list of results.
 - **Bundle Abort Policy**: If any step (sequential or parallel) within a bundle fails (throws an exception), the entire bundle execution is terminated immediately.
 
+### 1.3 Asynchronous Execution & Real-Time Tracking
+- **Granular Status Lifecycle**: Sequence groups and rule items transition through defined status states:
+  - `Pending`: Pre-populated for all sequences and rule items prior to run start.
+  - `Starting` / `InProgress`: Step is currently executing.
+  - `Completed`: Step finished successfully.
+  - `Failed`: Step encountered an exception during execution.
+  - `Skipped`: Step bypassed due to a preceding failure or bundle termination.
+- **Parallel Step Tracking**: Multi-rule sequence groups executing concurrently update individual rule statuses independently in a thread-safe manner.
+- **State Store & Event Observer**: The `IBundleExecutionTracker` interface provides real-time state snapshots (`GetExecutionAsync`) and event callbacks (`OnStatusChanged`) for caller notifications.
+
 ## 2. SQL Rule Constraints & Security
 
 ### 2.1 Forbidden Keywords
@@ -324,10 +334,11 @@ SELECT ProductId, Quantity FROM Inventory WHERE WarehouseId = 10;
 #### **Step 3: C# Rule (Sequence 2 - Join & Process)**
 ```csharp
 // Name: ProcessParallelResults
-// PreviousResult contains a List<object> with results from Step 1 and Step 2
-var parallelResults = (List<object>)PreviousResult;
-var products = (List<dynamic>)parallelResults[0];
-var stock = (List<dynamic>)parallelResults[1];
+// PreviousResult contains a List<object?> with results from Step 1 and Step 2.
+// Positional Indexing: Index [0] corresponds to Step 1 ('Fetch Products'), Index [1] corresponds to Step 2 ('Fetch Stock')
+var parallelResults = (List<object?>)PreviousResult;
+var products = (List<dynamic>)parallelResults[0]; // 1st parallel rule in Sequence 1
+var stock = (List<dynamic>)parallelResults[1];    // 2nd parallel rule in Sequence 1
 
 Log($"Processing {products.Count} products with corresponding stock data.");
 
@@ -340,3 +351,12 @@ foreach(var p in products) {
 }
 return "Parallel processing complete.";
 ```
+
+> [!TIP]
+> **Targeting Parallel Rules by Name or ID**: When using `IBundleExecutionTracker`, you can also retrieve results directly by `RuleName` or `RuleId` instead of array index:
+> ```csharp
+> var state = await tracker.GetExecutionAsync(executionId);
+> var seq1 = state.Sequences.First(s => s.SequenceOrder == 1);
+> var products = seq1.Rules.First(r => r.RuleName == "Fetch Products").Result;
+> var stock = seq1.Rules.First(r => r.RuleName == "Fetch Stock").Result;
+> ```

@@ -179,3 +179,69 @@ When executing a parallel group, the engine collects all results into a `List<ob
 
 ### 5.3 Exception Handling
 The engine follows a "fail-fast" approach. If any rule in a parallel group throws an exception, the `Task.WhenAll` will propagate it, and the engine will catch it, log a `[FATAL]` error, and stop the bundle execution immediately.
+
+### 5.4 Targeting Specific Rules in a Parallel Group
+When rules execute in parallel under the same `SequenceOrder`, their results are stored in `List<object?>`.
+
+1. **Positional Indexing (`PreviousResult[i]`)**: Index `[0]` corresponds to the 1st rule item configured in `bundle.Items` for that sequence, and index `[1]` corresponds to the 2nd rule item:
+   ```csharp
+   var parallelResults = (List<object?>)PreviousResult;
+   var rule1Result = parallelResults[0]; // First parallel rule
+   var rule2Result = parallelResults[1]; // Second parallel rule
+   ```
+
+2. **Lookup by Rule ID or Rule Name via `IBundleExecutionTracker`**:
+   ```csharp
+   var state = await tracker.GetExecutionAsync(executionId);
+   var parallelSeq = state?.Sequences.FirstOrDefault(s => s.SequenceOrder == 2);
+
+   // Target by Rule ID
+   var ruleA = parallelSeq?.Rules.FirstOrDefault(r => r.RuleId == 101)?.Result;
+
+   // Target by Rule Name
+   var ruleB = parallelSeq?.Rules.FirstOrDefault(r => r.RuleName == "Fetch Inventory")?.Result;
+   ```
+
+---
+
+## 6. Asynchronous Execution & Real-Time Status Tracking
+
+The engine includes thread-safe state tracking for monitoring long-running bundles asynchronously without blocking client threads.
+
+### 6.1 Service Registration
+Register the execution tracker in Dependency Injection using the extension method:
+
+```csharp
+builder.Services.AddBusinessRulesEngineTracking();
+```
+
+This registers `IBundleExecutionTracker` with the default `InMemoryBundleExecutionTracker` implementation as a Singleton.
+
+### 6.2 Pre-populating and Triggering Async Execution
+To trigger execution asynchronously:
+
+```csharp
+var tracker = serviceProvider.GetRequiredService<IBundleExecutionTracker>();
+
+// 1. Pre-populate all sequences and parallel rules in 'Pending' status
+var state = await tracker.CreateExecutionAsync(bundle);
+Guid executionId = state.ExecutionId;
+
+// 2. Execute bundle asynchronously in a background task
+_ = Task.Run(async () =>
+{
+    var context = new MyAppContext();
+    await engine.ExecuteBundleAsync(
+        bundle,
+        context,
+        appendLog: null,
+        tracker: tracker,
+        executionId: executionId);
+});
+```
+
+### 6.3 Querying Progress & Status Lifecycle
+Call `tracker.GetExecutionAsync(executionId)` at any time to retrieve the current `BundleExecutionState`. Each sequence and rule item moves through well-defined lifecycle states: `Pending` $\rightarrow$ `Starting` $\rightarrow$ `Completed` / `Failed` / `Skipped`.
+
+For complete details, API controller code examples, and event subscription details, refer to [EXECUTION_TRACKING.md](EXECUTION_TRACKING.md).
+

@@ -229,10 +229,59 @@ You can now execute multiple rules within a bundle concurrently by assigning the
 When a rule follows a parallel group, its `PreviousResult` will contain the list of results from all rules in that group.
 
 ```csharp
-// C# Rule following a parallel group
-var parallelResults = (List<object>)PreviousResult;
-Log($"Collected {parallelResults.Count} results from parallel steps.");
+// In a downstream C# rule following a parallel sequence:
+var parallelResults = (List<object?>)PreviousResult;
+
+// Positional Indexing:
+// Index [0] = 1st parallel rule configured in this sequence
+// Index [1] = 2nd parallel rule configured in this sequence
+var rule1Data = parallelResults[0];
+var rule2Data = parallelResults[1];
+
+Log($"Collected results: Rule 1 = {rule1Data}, Rule 2 = {rule2Data}");
 ```
+
+> [!TIP]
+> **Lookup by Rule Name or ID via Tracker**: Callers monitoring state via `IBundleExecutionTracker` can also target parallel rule outcomes directly by `RuleName` or `RuleId`:
+> ```csharp
+> var state = await tracker.GetExecutionAsync(executionId);
+> var seq2 = state.Sequences.First(s => s.SequenceOrder == 2);
+> var rule102Data = seq2.Rules.First(r => r.RuleId == 102).Result;
+> var threatData = seq2.Rules.First(r => r.RuleName == "Filter Threat IPs").Result;
+> ```
+
+---
+
+## ⏱️ Asynchronous Execution & Granular Status Tracking
+
+For long-running bundles, callers can trigger execution asynchronously and monitor step-by-step progress (`Pending` $\rightarrow$ `Starting` $\rightarrow$ `Completed` / `Failed`) across all sequence groups and parallel rules.
+
+### Features
+* **Thread-Safe State Store**: `IBundleExecutionTracker` and `InMemoryBundleExecutionTracker` provide real-time state snapshots.
+* **Pre-populated Execution Tree**: Automatically pre-populates all sequences and parallel rules in `Pending` state before execution starts.
+* **Real-time Progress Events**: Observe lifecycle updates via the `OnStatusChanged` event.
+* **API Non-Blocking Integration**: Callers receive an `executionId` immediately and poll state without keeping HTTP connections open.
+
+### Quick Setup
+
+```csharp
+// 1. Register tracking in DI
+builder.Services.AddBusinessRulesEngineTracking();
+
+// 2. Initialize tracking entry and run bundle asynchronously
+var tracker = serviceProvider.GetRequiredService<IBundleExecutionTracker>();
+var executionState = await tracker.CreateExecutionAsync(bundle);
+
+_ = Task.Run(async () =>
+{
+    await engine.ExecuteBundleAsync(bundle, context, appendLog: null, tracker: tracker, executionId: executionState.ExecutionId);
+});
+
+// 3. Query current progress anytime
+var statusSnapshot = await tracker.GetExecutionAsync(executionState.ExecutionId);
+```
+
+For full details and Web API examples, see the [Asynchronous Execution Tracking Guide](docs/EXECUTION_TRACKING.md).
 
 ---
 
