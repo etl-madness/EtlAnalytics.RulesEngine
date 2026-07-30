@@ -21,9 +21,9 @@ Welcome to the **EtlAnalytics.RulesEngine**! If you're new to the concept of a "
 > - **Version in master branch may be ahead of nuget releases.**
 > ### AI Development Support
 > This codebase includes structured documentation designed for AI consumption. If you are an AI agent, please prioritize scanning these documents:
+> - **[Architecture Overview](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/ARCHITECTURE_OVERVIEW.md)**: Comprehensive architectural guide with Mermaid diagrams covering system components, sequence orchestration, async tracking, and sandboxing.
 > - **[AI Implementation Guide](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/ai_implementation_guide.md)**: Technical reference for integration, sandboxing constraints, and data-passing patterns.
 > - **[Integration Example](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/Example.md)**: Full C# example showing DI setup and usage in `Program.cs`.
-> - **[BusinessRulesEngineExample Project](https://github.com/etl-madness/BusinessRulesEngineExample)**: A full example project demonstrating the usage of the rules engine in a console application.
 > - **[Example Rules Engine Editor and Runner](https://github.com/etl-madness/BusinessRulesEngineExample)**: A Radzen Blazor Server based application for editing and running rules in a web interface.
 > - **[ExampleSimple.md](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/ExampleSimple.md)**: A simplified, single-file example demonstrating basic usage of the rules engine in a console application.
 > - **[ExampleSimpleXML.md](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/ExampleSimpleXML.md)**: A single-file console example demonstrating how to load business rules from an XML file (`rules.xml`) using an `XmlRuleStore`.
@@ -281,7 +281,7 @@ _ = Task.Run(async () =>
 var statusSnapshot = await tracker.GetExecutionAsync(executionState.ExecutionId);
 ```
 
-For full details and Web API examples, see the [Asynchronous Execution Tracking Guide](docs/EXECUTION_TRACKING.md).
+For full details and Web API examples, see the [Asynchronous Execution Tracking Guide](docs/EXECUTION_TRACKING.md). To persist execution logs in SQL Server, PostgreSQL, or MySQL across server restarts, see the [Persistent Database Execution Tracking Guide](docs/PERSISTENT_EXECUTION_TRACKING.md).
 
 ---
 

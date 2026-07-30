@@ -29,6 +29,9 @@ builder.Services.AddBusinessRulesEngineTracking();
 
 This registers `IBundleExecutionTracker` with the thread-safe `InMemoryBundleExecutionTracker` implementation as a Singleton.
 
+> [!TIP]
+> **Need Persistent Database Logging?** If you need execution progress and audit logs to persist across server restarts or scaled-out microservice instances, see the [Persistent Database Execution Tracking Guide](PERSISTENT_EXECUTION_TRACKING.md) for SQL Server, PostgreSQL, and MySQL table schemas and Dapper implementations.
+
 ---
 
 ## 2. Triggering Non-Blocking Asynchronous Execution in an API
