@@ -151,6 +151,8 @@ erDiagram
         Guid ExecutionId PK
         int BundleId
         string BundleName
+        string Categories
+        string Tags
         string Status
         datetime StartTime
         datetime EndTime
@@ -176,6 +178,8 @@ erDiagram
         int RuleId
         string RuleName
         string RuleType
+        string Categories
+        string Tags
         string Status
         datetime StartTime
         datetime EndTime

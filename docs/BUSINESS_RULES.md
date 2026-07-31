@@ -70,8 +70,10 @@ C# scripts are executed with a limited set of allowed assemblies and namespaces 
 ### 4.2 Key Management
 - The encryption key is prioritized from the `DB_ENCRYPTION_KEY` environment variable, falling back to the `Security:EncryptionKey` app configuration setting.
 
-## 5. Versioning and Metadata
+## 5. Versioning, Categorization, and Metadata
 - Each `BusinessRule` tracks its own version number (defaulting to 1).
+- Rules, Bundles, and Connections support multi-category (`Categories: List<string>`) and multi-tag (`Tags: List<string>`) classification.
+- Metadata is persisted in SQL stores as JSON array strings (`NVARCHAR(MAX)` / `TEXT`) and supports filtering via `IBusinessRuleStore` search methods (`GetRulesByCategoryAsync`, `GetRulesByTagAsync`, `GetBundlesByCategoryAsync`, `GetBundlesByTagAsync`).
 - Rules track `CreatedAt` and `UpdatedAt` timestamps for auditability.
 - Rules include an `IsActive` flag to allow for soft-disabling without deletion.
 

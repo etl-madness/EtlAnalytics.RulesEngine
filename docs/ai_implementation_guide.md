@@ -23,8 +23,19 @@ Implementing these is mandatory for integration:
 - `RuleType`: A string constant. Built-in types are available in `RuleConstants`: `TSQL`, `CSharp`. Extensions add others like `Javascript`.
 - `Code`: The raw SQL query or C# script.
 - `ConnectionId`: Links to a `DbConnectionDefinition`. The engine resolves the correct provider and connection string before calling the `ISqlRuleExecutor`.
+- `Categories` (`List<string>`): Organizational categories for rule grouping (e.g. `["Finance", "Security"]`).
+- `Tags` (`List<string>`): Multi-valued labels for search and filtering (e.g. `["PCI-DSS", "Daily"]`).
 
-### `RuleExecutionContext` (Base Class)
+### `BusinessRuleBundle`
+- `Items`: Ordered collection of `BusinessRuleBundleItem` elements.
+- `Categories` (`List<string>`): Organizational categories for bundle grouping.
+- `Tags` (`List<string>`): Multi-valued labels for search and filtering.
+
+### `DbConnectionDefinition`
+- `ConnectionString`: Encrypted connection string.
+- `ProviderType`: Database engine provider type (e.g. "SqlServer", "Postgres", "MySql").
+- `Categories` (`List<string>`): Categories associated with the connection.
+- `Tags` (`List<string>`): Tags associated with the connection.
 Agents should inherit from this to pass custom data to rules.
 - `PreviousResult`: Result from the last rule in a bundle.
 - `StepResults`: Dictionary of all previous results in a bundle (`sequenceOrder` -> `result`).

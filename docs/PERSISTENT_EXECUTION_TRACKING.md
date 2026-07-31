@@ -21,6 +21,8 @@ CREATE TABLE dbo.BundleExecutionLogs (
     ExecutionId UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
     BundleId INT NOT NULL,
     BundleName NVARCHAR(255) NOT NULL,
+    Categories NVARCHAR(MAX) NULL,
+    Tags NVARCHAR(MAX) NULL,
     Status NVARCHAR(50) NOT NULL, -- Pending, Starting, Completed, Failed, Skipped
     StartTime DATETIME2 NULL,
     EndTime DATETIME2 NULL,
@@ -49,6 +51,8 @@ CREATE TABLE dbo.RuleExecutionLogs (
     RuleId INT NOT NULL,
     RuleName NVARCHAR(255) NOT NULL,
     RuleType NVARCHAR(50) NOT NULL,
+    Categories NVARCHAR(MAX) NULL,
+    Tags NVARCHAR(MAX) NULL,
     Status NVARCHAR(50) NOT NULL,
     StartTime DATETIME2 NULL,
     EndTime DATETIME2 NULL,

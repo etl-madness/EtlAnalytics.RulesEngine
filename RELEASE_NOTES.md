@@ -17,11 +17,12 @@
         - `SELECT` queries deserialize JSON arrays back into `List<string>`.
 
 ### 🛠️ Improvements
+- **Schema Upgrade Guide**: Created [SCHEMA_UPGRADE.md](docs/SCHEMA_UPGRADE.md) containing idempotent SQL migration scripts for SQL Server, PostgreSQL, and MySQL.
 - **Documentation**: Updated `DEVELOPERS_GUIDE.md` with Section 7 detailing Categories and Tags model usage, database persistence strategies, and search methods.
 - **Automated Tests**: Added `CategoryAndTagTests` unit test suite covering multi-category/tag modeling, execution tracker state propagation, and store search methods.
 
 ### ⚠️ Backward Compatibility
-- **100% Backward Compatible**: Existing queries and model instantiations remain fully functional. Missing database columns are automatically created or safely default to empty lists (`[]`).
+- **100% Backward Compatible**: Existing queries and model instantiations remain fully functional. Missing database columns are automatically created or safely default to empty lists (`[]`). For manual database migrations, see the [Schema Upgrade Guide](docs/SCHEMA_UPGRADE.md).
 
 ---
 

@@ -22,6 +22,7 @@ Welcome to the **EtlAnalytics.RulesEngine**! If you're new to the concept of a "
 > ### AI Development Support
 > This codebase includes structured documentation designed for AI consumption. If you are an AI agent, please prioritize scanning these documents:
 > - **[Architecture Overview](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/ARCHITECTURE_OVERVIEW.md)**: Comprehensive architectural guide with Mermaid diagrams covering system components, sequence orchestration, async tracking, and sandboxing.
+> - **[Schema Upgrade Guide](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/SCHEMA_UPGRADE.md)**: Idempotent database migration scripts (SQL Server, Postgres, MySQL) for upgrading database schemas across versions.
 > - **[AI Implementation Guide](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/ai_implementation_guide.md)**: Technical reference for integration, sandboxing constraints, and data-passing patterns.
 > - **[Integration Example](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/Example.md)**: Full C# example showing DI setup and usage in `Program.cs`.
 > - **[Example Rules Engine Editor and Runner](https://github.com/etl-madness/BusinessRulesEngineExample)**: A Radzen Blazor Server based application for editing and running rules in a web interface.
@@ -313,16 +314,15 @@ The engine needs to find your rules in a database. Here is the recommended SQL s
 
 #### **SQL Server Schema**
 ```sql
-DROP TABLE IF EXISTS dbo.BusinessRuleBundleItems;
-DROP TABLE IF EXISTS dbo.BusinessRuleBundles;
-DROP TABLE IF EXISTS dbo.BusinessRules;
-DROP TABLE IF EXISTS dbo.DbConnections;
+
 
 CREATE TABLE dbo.DbConnections (
     Id INT IDENTITY(1,1) PRIMARY KEY,
     Name NVARCHAR(255) NOT NULL,
     ConnectionString NVARCHAR(MAX) NOT NULL, -- Stored as AES-256 encrypted Base64
     ProviderType NVARCHAR(100) NOT NULL DEFAULT 'SqlServer',
+    Categories NVARCHAR(MAX) NULL, -- JSON array of category strings
+    Tags NVARCHAR(MAX) NULL,       -- JSON array of tag strings
     CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
 );
 
@@ -333,6 +333,8 @@ CREATE TABLE dbo.BusinessRules (
     RuleType NVARCHAR(50) NOT NULL, -- 'TSQL', 'CSharp', or 'Javascript'
     Code NVARCHAR(MAX) NOT NULL,
     ConnectionId INT NULL, -- Optional: Link to a specific database
+    Categories NVARCHAR(MAX) NULL, -- JSON array of category strings
+    Tags NVARCHAR(MAX) NULL,       -- JSON array of tag strings
     IsActive BIT NOT NULL DEFAULT 1,
     CONSTRAINT FK_BusinessRules_Connection FOREIGN KEY (ConnectionId) REFERENCES dbo.DbConnections(Id)
 );
@@ -340,6 +342,9 @@ CREATE TABLE dbo.BusinessRules (
 CREATE TABLE dbo.BusinessRuleBundles (
     Id INT IDENTITY(1,1) PRIMARY KEY,
     Name NVARCHAR(255) NOT NULL,
+    Description NVARCHAR(MAX) NULL,
+    Categories NVARCHAR(MAX) NULL, -- JSON array of category strings
+    Tags NVARCHAR(MAX) NULL,       -- JSON array of tag strings
     IsActive BIT NOT NULL DEFAULT 1
 );
 
@@ -350,6 +355,56 @@ CREATE TABLE dbo.BusinessRuleBundleItems (
     SequenceOrder INT NOT NULL, -- Items with the same SequenceOrder run in parallel
     CONSTRAINT FK_BundleItems_Bundle FOREIGN KEY (BundleId) REFERENCES dbo.BusinessRuleBundles(Id) ON DELETE CASCADE
 );
+
+```sql
+-- Bundle-level execution run table
+CREATE TABLE dbo.BundleExecutionLogs (
+    ExecutionId UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    BundleId INT NOT NULL,
+    BundleName NVARCHAR(255) NOT NULL,
+    Categories NVARCHAR(MAX) NULL,
+    Tags NVARCHAR(MAX) NULL,
+    Status NVARCHAR(50) NOT NULL, -- Pending, Starting, Completed, Failed, Skipped
+    StartTime DATETIME2 NULL,
+    EndTime DATETIME2 NULL,
+    ErrorMessage NVARCHAR(MAX) NULL,
+    Logs NVARCHAR(MAX) NULL, -- JSON array of log lines
+    CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+);
+
+-- Sequence group level execution log table
+CREATE TABLE dbo.SequenceExecutionLogs (
+    Id INT IDENTITY(1,1) PRIMARY KEY,
+    ExecutionId UNIQUEIDENTIFIER NOT NULL,
+    SequenceOrder INT NOT NULL,
+    Status NVARCHAR(50) NOT NULL,
+    StartTime DATETIME2 NULL,
+    EndTime DATETIME2 NULL,
+    Message NVARCHAR(MAX) NULL,
+    CONSTRAINT FK_SequenceExecutionLogs_Bundle FOREIGN KEY (ExecutionId) REFERENCES dbo.BundleExecutionLogs(ExecutionId) ON DELETE CASCADE
+);
+
+-- Individual rule level execution log table (includes parallel rules)
+CREATE TABLE dbo.RuleExecutionLogs (
+    Id INT IDENTITY(1,1) PRIMARY KEY,
+    ExecutionId UNIQUEIDENTIFIER NOT NULL,
+    SequenceOrder INT NOT NULL,
+    RuleId INT NOT NULL,
+    RuleName NVARCHAR(255) NOT NULL,
+    RuleType NVARCHAR(50) NOT NULL,
+    Categories NVARCHAR(MAX) NULL,
+    Tags NVARCHAR(MAX) NULL,
+    Status NVARCHAR(50) NOT NULL,
+    StartTime DATETIME2 NULL,
+    EndTime DATETIME2 NULL,
+    ErrorMessage NVARCHAR(MAX) NULL,
+    ResultJson NVARCHAR(MAX) NULL,
+    CONSTRAINT FK_RuleExecutionLogs_Bundle FOREIGN KEY (ExecutionId) REFERENCES dbo.BundleExecutionLogs(ExecutionId) ON DELETE CASCADE
+);
+
+CREATE INDEX IX_SequenceExecutionLogs_ExecId ON dbo.SequenceExecutionLogs(ExecutionId);
+CREATE INDEX IX_RuleExecutionLogs_ExecId ON dbo.RuleExecutionLogs(ExecutionId);
+```
 ```
 
 #### **PostgreSQL Schema**
@@ -364,6 +419,8 @@ CREATE TABLE DbConnections (
     Name VARCHAR(255) NOT NULL,
     ConnectionString TEXT NOT NULL,
     ProviderType VARCHAR(100) NOT NULL DEFAULT 'SqlServer',
+    Categories TEXT NULL,
+    Tags TEXT NULL,
     CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -374,12 +431,17 @@ CREATE TABLE BusinessRules (
     RuleType VARCHAR(50) NOT NULL,
     Code TEXT NOT NULL,
     ConnectionId INT REFERENCES DbConnections(Id),
+    Categories TEXT NULL,
+    Tags TEXT NULL,
     IsActive BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 CREATE TABLE BusinessRuleBundles (
     Id SERIAL PRIMARY KEY,
     Name VARCHAR(255) NOT NULL,
+    Description TEXT NULL,
+    Categories TEXT NULL,
+    Tags TEXT NULL,
     IsActive BOOLEAN NOT NULL DEFAULT TRUE
 );
 
@@ -403,6 +465,8 @@ CREATE TABLE DbConnections (
     Name VARCHAR(255) NOT NULL,
     ConnectionString TEXT NOT NULL,
     ProviderType VARCHAR(100) NOT NULL DEFAULT 'SqlServer',
+    Categories TEXT NULL,
+    Tags TEXT NULL,
     CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -413,6 +477,8 @@ CREATE TABLE BusinessRules (
     RuleType VARCHAR(50) NOT NULL, -- 'TSQL', 'CSharp', or 'Javascript'
     Code TEXT NOT NULL,
     ConnectionId INT,
+    Categories TEXT NULL,
+    Tags TEXT NULL,
     IsActive BOOLEAN NOT NULL DEFAULT TRUE,
     FOREIGN KEY (ConnectionId) REFERENCES DbConnections(Id)
 );
@@ -420,6 +486,9 @@ CREATE TABLE BusinessRules (
 CREATE TABLE BusinessRuleBundles (
     Id INT AUTO_INCREMENT PRIMARY KEY,
     Name VARCHAR(255) NOT NULL,
+    Description TEXT NULL,
+    Categories TEXT NULL,
+    Tags TEXT NULL,
     IsActive BOOLEAN NOT NULL DEFAULT TRUE
 );
 
