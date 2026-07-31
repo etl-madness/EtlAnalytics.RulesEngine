@@ -451,6 +451,45 @@ CREATE TABLE BusinessRuleBundleItems (
     RuleId INT NOT NULL REFERENCES BusinessRules(Id),
     SequenceOrder INT NOT NULL -- Items with the same SequenceOrder run in parallel
 );
+CREATE TABLE BundleExecutionLogs (
+    ExecutionId UUID PRIMARY KEY,
+    BundleId INT NOT NULL,
+    BundleName VARCHAR(255) NOT NULL,
+    Status VARCHAR(50) NOT NULL,
+    StartTime TIMESTAMP NULL,
+    EndTime TIMESTAMP NULL,
+    ErrorMessage TEXT NULL,
+    Logs TEXT NULL,
+    CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE SequenceExecutionLogs (
+    Id SERIAL PRIMARY KEY,
+    ExecutionId UUID NOT NULL REFERENCES BundleExecutionLogs(ExecutionId) ON DELETE CASCADE,
+    SequenceOrder INT NOT NULL,
+    Status VARCHAR(50) NOT NULL,
+    StartTime TIMESTAMP NULL,
+    EndTime TIMESTAMP NULL,
+    Message TEXT NULL
+);
+
+CREATE TABLE RuleExecutionLogs (
+    Id SERIAL PRIMARY KEY,
+    ExecutionId UUID NOT NULL REFERENCES BundleExecutionLogs(ExecutionId) ON DELETE CASCADE,
+    SequenceOrder INT NOT NULL,
+    RuleId INT NOT NULL,
+    RuleName VARCHAR(255) NOT NULL,
+    RuleType VARCHAR(50) NOT NULL,
+    Status VARCHAR(50) NOT NULL,
+    StartTime TIMESTAMP NULL,
+    EndTime TIMESTAMP NULL,
+    ErrorMessage TEXT NULL,
+    ResultJson TEXT NULL
+);
+
+CREATE INDEX IX_SequenceExecutionLogs_ExecId ON SequenceExecutionLogs(ExecutionId);
+CREATE INDEX IX_RuleExecutionLogs_ExecId ON RuleExecutionLogs(ExecutionId);
+
 ```
 
 #### **MySQL Schema**
@@ -499,6 +538,43 @@ CREATE TABLE BusinessRuleBundleItems (
     SequenceOrder INT NOT NULL, -- Items with the same SequenceOrder run in parallel
     FOREIGN KEY (BundleId) REFERENCES BusinessRuleBundles(Id) ON DELETE CASCADE,
     FOREIGN KEY (RuleId) REFERENCES BusinessRules(Id)
+);
+CREATE TABLE BundleExecutionLogs (
+    ExecutionId CHAR(36) PRIMARY KEY,
+    BundleId INT NOT NULL,
+    BundleName VARCHAR(255) NOT NULL,
+    Status VARCHAR(50) NOT NULL,
+    StartTime DATETIME NULL,
+    EndTime DATETIME NULL,
+    ErrorMessage TEXT NULL,
+    Logs TEXT NULL,
+    CreatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE SequenceExecutionLogs (
+    Id INT AUTO_INCREMENT PRIMARY KEY,
+    ExecutionId CHAR(36) NOT NULL,
+    SequenceOrder INT NOT NULL,
+    Status VARCHAR(50) NOT NULL,
+    StartTime DATETIME NULL,
+    EndTime DATETIME NULL,
+    Message TEXT NULL,
+    FOREIGN KEY (ExecutionId) REFERENCES BundleExecutionLogs(ExecutionId) ON DELETE CASCADE
+);
+
+CREATE TABLE RuleExecutionLogs (
+    Id INT AUTO_INCREMENT PRIMARY KEY,
+    ExecutionId CHAR(36) NOT NULL,
+    SequenceOrder INT NOT NULL,
+    RuleId INT NOT NULL,
+    RuleName VARCHAR(255) NOT NULL,
+    RuleType VARCHAR(50) NOT NULL,
+    Status VARCHAR(50) NOT NULL,
+    StartTime DATETIME NULL,
+    EndTime DATETIME NULL,
+    ErrorMessage TEXT NULL,
+    ResultJson TEXT NULL,
+    FOREIGN KEY (ExecutionId) REFERENCES BundleExecutionLogs(ExecutionId) ON DELETE CASCADE
 );
 ```
 
