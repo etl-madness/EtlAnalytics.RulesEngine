@@ -14,6 +14,10 @@ public class BusinessRuleBundle
     public string Name { get; set; } = string.Empty;
     /// <summary>Gets or sets a description of the bundle.</summary>
     public string Description { get; set; } = string.Empty;
+    /// <summary>Gets or sets the categories associated with this bundle.</summary>
+    public List<string> Categories { get; set; } = new();
+    /// <summary>Gets or sets the tags associated with this bundle.</summary>
+    public List<string> Tags { get; set; } = new();
     /// <summary>Gets or sets a value indicating whether the bundle is active.</summary>
     public bool IsActive { get; set; } = true;
     /// <summary>Gets or sets the creation timestamp.</summary>

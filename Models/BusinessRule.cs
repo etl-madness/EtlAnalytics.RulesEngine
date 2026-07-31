@@ -21,6 +21,10 @@ public class BusinessRule
     public int Version { get; set; } = 1;
     /// <summary>Gets or sets an optional connection identifier to run the rule against a specific database.</summary>
     public int? ConnectionId { get; set; }
+    /// <summary>Gets or sets the categories associated with this rule.</summary>
+    public List<string> Categories { get; set; } = new();
+    /// <summary>Gets or sets the tags associated with this rule.</summary>
+    public List<string> Tags { get; set; } = new();
     /// <summary>Gets or sets a value indicating whether the rule is active.</summary>
     public bool IsActive { get; set; } = true;
     /// <summary>Gets or sets the creation timestamp.</summary>

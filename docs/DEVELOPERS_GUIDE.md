@@ -245,3 +245,30 @@ Call `tracker.GetExecutionAsync(executionId)` at any time to retrieve the curren
 
 For complete details, API controller code examples, and event subscription details, refer to [EXECUTION_TRACKING.md](EXECUTION_TRACKING.md).
 
+---
+
+## 7. Categorization & Tagging
+
+`BusinessRule`, `BusinessRuleBundle`, and `DbConnectionDefinition` support multi-category and multi-tag classification via `Categories` (`List<string>`) and `Tags` (`List<string>`).
+
+### 7.1 Model Usage
+```csharp
+var rule = new BusinessRule
+{
+    Name = "PCI Compliance Check",
+    Categories = new List<string> { "Finance", "Security" },
+    Tags = new List<string> { "PCI-DSS", "HighPriority", "Automated" }
+};
+```
+
+### 7.2 Database Persistence
+When persisting rules, bundles, or connections in relational databases (SQL Server, Postgres, MySQL), `Categories` and `Tags` are stored as JSON array strings (e.g. `["Finance","Security"]`).
+
+### 7.3 Store Search & Filtering
+`IBusinessRuleStore` includes search extensions for filtering rules and bundles by category or tag:
+- `GetRulesByCategoryAsync(category)`
+- `GetRulesByTagAsync(tag)`
+- `GetBundlesByCategoryAsync(category)`
+- `GetBundlesByTagAsync(tag)`
+
+

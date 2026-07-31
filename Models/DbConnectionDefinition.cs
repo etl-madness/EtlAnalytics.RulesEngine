@@ -13,6 +13,10 @@ public class DbConnectionDefinition
     public string ConnectionString { get; set; } = string.Empty;
     /// <summary>Gets or sets the database provider type (e.g., "SqlServer", "Postgres").</summary>
     public string ProviderType { get; set; } = "SqlServer";
+    /// <summary>Gets or sets the categories associated with this connection.</summary>
+    public List<string> Categories { get; set; } = new();
+    /// <summary>Gets or sets the tags associated with this connection.</summary>
+    public List<string> Tags { get; set; } = new();
     /// <summary>Gets or sets the creation timestamp.</summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

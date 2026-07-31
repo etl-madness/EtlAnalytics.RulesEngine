@@ -20,6 +20,12 @@ public class RuleExecutionState
     /// <summary>Gets or sets the sequence order group this rule belongs to.</summary>
     public int SequenceOrder { get; set; }
 
+    /// <summary>Gets or sets the categories associated with this rule.</summary>
+    public List<string> Categories { get; set; } = new();
+
+    /// <summary>Gets or sets the tags associated with this rule.</summary>
+    public List<string> Tags { get; set; } = new();
+
     /// <summary>Gets or sets the current execution status.</summary>
     public ExecutionStatus Status { get; set; } = ExecutionStatus.Pending;
 
@@ -74,6 +80,12 @@ public class BundleExecutionState
 
     /// <summary>Gets or sets the bundle name.</summary>
     public string BundleName { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the categories associated with this bundle.</summary>
+    public List<string> Categories { get; set; } = new();
+
+    /// <summary>Gets or sets the tags associated with this bundle.</summary>
+    public List<string> Tags { get; set; } = new();
 
     /// <summary>Gets or sets the overall bundle execution status.</summary>
     public ExecutionStatus Status { get; set; } = ExecutionStatus.Pending;

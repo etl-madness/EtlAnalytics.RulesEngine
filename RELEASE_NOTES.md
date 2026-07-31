@@ -1,5 +1,30 @@
 # Release Notes - EtlAnalytics.RulesEngine
 
+## [2.3.0] - 2026-07-31
+
+### 🚀 New Features
+- **Multi-Category & Multi-Tag Support**:
+    - **Domain Models**: Added `Categories` (`List<string>`) and `Tags` (`List<string>`) properties to `BusinessRule`, `BusinessRuleBundle`, and `DbConnectionDefinition`.
+    - **Execution Tracking Integration**: Updated `RuleExecutionState` and `BundleExecutionState` to capture and propagate `Categories` and `Tags` into execution state snapshots.
+    - **Store Search & Filtering**: Added default interface search contracts to `IBusinessRuleStore`:
+        - `GetRulesByCategoryAsync(category)`
+        - `GetRulesByTagAsync(tag)`
+        - `GetBundlesByCategoryAsync(category)`
+        - `GetBundlesByTagAsync(tag)`
+    - **Full CRUD Persistence & Auto-Migrations**:
+        - Updated `SqlDatabaseService` with non-breaking `ALTER TABLE` auto-migration statements adding `Categories NVARCHAR(MAX) NULL` and `Tags NVARCHAR(MAX) NULL` columns if missing.
+        - `INSERT` and `UPDATE` operations serialize `Categories` and `Tags` to JSON arrays.
+        - `SELECT` queries deserialize JSON arrays back into `List<string>`.
+
+### 🛠️ Improvements
+- **Documentation**: Updated `DEVELOPERS_GUIDE.md` with Section 7 detailing Categories and Tags model usage, database persistence strategies, and search methods.
+- **Automated Tests**: Added `CategoryAndTagTests` unit test suite covering multi-category/tag modeling, execution tracker state propagation, and store search methods.
+
+### ⚠️ Backward Compatibility
+- **100% Backward Compatible**: Existing queries and model instantiations remain fully functional. Missing database columns are automatically created or safely default to empty lists (`[]`).
+
+---
+
 ## [2.2.0] - 2026-07-30
 
 ### 🚀 New Features
