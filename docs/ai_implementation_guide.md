@@ -1,93 +1,200 @@
 # AI Implementation Guide: EtlAnalytics.RulesEngine
 
-This document serves as a structured technical reference for AI agents to integrate, extend, and develop rules using the `EtlAnalytics.RulesEngine` NuGet package.
+This guide provides structured technical guidelines, code patterns, and best practices for AI agents (and developers using AI coding assistants) to integrate, extend, generate rules for, and operate the `EtlAnalytics.RulesEngine` package.
 
-## 1. Core Architecture
+---
 
-The library is a database-agnostic business rules engine that supports a pluggable execution architecture. By default, it supports **TSQL** and **C# Scripting**, but it can be extended to support any language (e.g., **Javascript**) via external packages. It follows a standard Dependency Injection (DI) pattern and is decoupled from specific database execution libraries (like Dapper). It targets both **.NET 8** and **.NET 10**.
+## 1. Quick Reference Architecture
 
-### Primary Service
-- **`BusinessRuleEngine<TContext>`**: The orchestrator. `TContext` must inherit from <see cref="RuleExecutionContext"/>.
+```mermaid
+graph LR
+    Sub["Submitting App / Web API"] -->|1. CreateExecutionAsync| Tracker["IBundleExecutionTracker"]
+    Sub -->|2. ExecuteBundleAsync| Engine["BusinessRuleEngine<TContext>"]
+    Engine -->|3. Load Rules| Store["IBusinessRuleStore"]
+    Engine -->|4. Dispatch Steps| Exec["IRuleExecutor"]
+    Engine -->|5. Update Lifecycle| Tracker
+    Tracker -->|6. OnStatusChanged / GET| Poll["API Poller / Client UI"]
+```
 
-### Required Interfaces
-Implementing these is mandatory for integration:
-- **`IBusinessRuleStore`**: Handles retrieval of `BusinessRule` and `BusinessRuleBundle` objects.
-- **`IRuleExecutor`**: The core interface for extending the engine. Implement this to add support for new rule types (e.g., Python, Javascript).
-- **`ISqlRuleExecutor`**: Abstracts the actual SQL execution (used by the default TSQL executor).
-- **`IRuleDbProvider`**: Provides `IDbConnection` instances (used by implementations of `ISqlRuleExecutor`).
-- **`IEncryptionService`**: Handles AES-256 encryption/decryption of connection strings.
+### Core Components
+- **`BusinessRuleEngine<TContext>`**: Main orchestrator. `TContext` inherits from `RuleExecutionContext`.
+- **`IBusinessRuleStore`**: Sourcing interface for `BusinessRule`, `BusinessRuleBundle`, and `DbConnectionDefinition`.
+- **`IBundleExecutionTracker`**: Thread-safe observer and state store for async monitoring (`Pending` $\rightarrow$ `Starting` $\rightarrow$ `Completed` / `Failed` / `Skipped`).
+- **`IRuleExecutor` / `ISqlRuleExecutor`**: Language-specific execution implementations (TSQL, C#, Javascript).
 
-## 2. Model Definitions
+---
+
+## 2. Model Definitions & Properties
 
 ### `BusinessRule`
-- `RuleType`: A string constant. Built-in types are available in `RuleConstants`: `TSQL`, `CSharp`. Extensions add others like `Javascript`.
-- `Code`: The raw SQL query or C# script.
-- `ConnectionId`: Links to a `DbConnectionDefinition`. The engine resolves the correct provider and connection string before calling the `ISqlRuleExecutor`.
-- `Categories` (`List<string>`): Organizational categories for rule grouping (e.g. `["Finance", "Security"]`).
-- `Tags` (`List<string>`): Multi-valued labels for search and filtering (e.g. `["PCI-DSS", "Daily"]`).
+- `Id` (`int`): Primary key.
+- `Name` (`string`): Unique rule identifier.
+- `RuleType` (`string`): Language type string (`RuleConstants.TSQL`, `RuleConstants.CSharp`, `"Javascript"`).
+- `Code` (`string`): Executable script body.
+- `ConnectionId` (`int?`): Optional connection link to run T-SQL rules against cross-database instances.
+- `Categories` (`List<string>`): Organizational tags (e.g., `["Finance", "Compliance"]`).
+- `Tags` (`List<string>`): Searchable labels (e.g., `["PCI-DSS", "Nightly"]`).
 
 ### `BusinessRuleBundle`
-- `Items`: Ordered collection of `BusinessRuleBundleItem` elements.
-- `Categories` (`List<string>`): Organizational categories for bundle grouping.
-- `Tags` (`List<string>`): Multi-valued labels for search and filtering.
+- `Name` (`string`): Bundle identifier.
+- `Items` (`List<BusinessRuleBundleItem>`): Sequence items containing `RuleId` and `SequenceOrder`.
+- `Categories` (`List<string>`): Organizational categories.
+- `Tags` (`List<string>`): Searchable labels.
 
-### `DbConnectionDefinition`
-- `ConnectionString`: Encrypted connection string.
-- `ProviderType`: Database engine provider type (e.g. "SqlServer", "Postgres", "MySql").
-- `Categories` (`List<string>`): Categories associated with the connection.
-- `Tags` (`List<string>`): Tags associated with the connection.
-Agents should inherit from this to pass custom data to rules.
-- `PreviousResult`: Result from the last rule in a bundle.
-- `StepResults`: Dictionary of all previous results in a bundle (`sequenceOrder` -> `result`).
-- `CancellationToken`: Used to signal timeouts (10s for C#, 30s for SQL).
+### `RuleExecutionContext` (Base Class)
+- `PreviousResult` (`object?`): Result from the preceding step (or `List<object?>` if following a parallel group).
+- `StepResults` (`Dictionary<int, object?>`): Historical step results indexed by `SequenceOrder`.
+- `CancellationToken`: Execution timeout cancellation token (default 10s for C#, 30s for SQL).
 
-## 3. Data Passing and Orchestration
+---
 
-The engine supports both sequential and parallel execution of rules within a `BusinessRuleBundle`. Data is passed between steps automatically via the context.
+## 3. CRITICAL Constraints & AI Anti-Patterns to Avoid
 
-### Parallel Execution (Sequence Groups)
-- Rules sharing the same `SequenceOrder` are executed concurrently using `Task.WhenAll`.
-- Results from a parallel group are aggregated into a `List<object?>`.
-- The next step receives this list in `globals.PreviousResult`.
+When generating rule scripts or integrating the library using AI, adhere to these mandatory security and sandbox rules:
 
-### C# to C# Data Passing
-- Rules can read `globals.PreviousResult` or look up specific results in `globals.StepResults`.
-- For parallel steps, `PreviousResult` will be a `List<object?>`.
+> [!CAUTION]
+> ### Rule 1: NO Direct Network or File System I/O in C# Rules
+> **Constraint**: C# Roslyn sandbox blocks `System.IO`, `System.Net`, `System.Diagnostics`, and `System.Reflection`.
+> - **WRONG**: `var client = new HttpClient(); await client.GetAsync("https://api.com");` $\rightarrow$ **Throws Compilation Exception**
+> - **RIGHT**: Expose I/O methods on your custom `TContext` class and invoke them in the script:
+>   ```csharp
+>   // 'Context' property provides access to your TContext
+>   var response = await Context.HttpClientWrapper.GetAsync("https://api.com");
+>   ```
 
-### SQL to C# Data Passing
-SQL results are returned as `IEnumerable<dynamic>`. C# rules can then process this data.
+> [!CAUTION]
+> ### Rule 2: NO Direct `INSERT`, `UPDATE`, `DELETE`, `DROP` in T-SQL Rules
+> **Constraint**: The SQL security sandbox scans and blocks data-modification keywords (`DROP`, `TRUNCATE`, `DELETE`, `UPDATE`, `INSERT`, `GRANT`, `CREATE`, `ALTER`).
+> - **WRONG**: `UPDATE Orders SET Status = 'Processed' WHERE OrderId = 123;` $\rightarrow$ **Throws SecurityException**
+> - **RIGHT**: Use a Stored Procedure via `EXEC`:
+>   ```sql
+>   EXEC dbo.sp_UpdateOrderStatus @OrderId = 123, @Status = 'Processed';
+>   ```
 
-### C# to SQL Data Passing
-The engine passes `PreviousResultJson` and `StepResultsJson` as parameters into every SQL execution.
+> [!IMPORTANT]
+> ### Rule 3: Handle `List<object?>` when Following Parallel Sequence Groups
+> **Constraint**: Rules sharing the same `SequenceOrder` execute concurrently via `Task.WhenAll`, and their results are aggregated into a `List<object?>`.
+> - **Sequential Step**: `PreviousResult` contains the single return object from step N-1.
+> - **Parallel Step**: `PreviousResult` contains `List<object?>` from all rules in sequence group N-1:
+>   ```csharp
+>   var parallelList = (List<object?>)PreviousResult;
+>   var rule1Result = parallelList[0]; // 1st parallel rule item
+>   var rule2Result = parallelList[1]; // 2nd parallel rule item
+>   ```
 
-## 4. Multi-Database Support
+---
 
-The engine passes the `ProviderType` (e.g., "SqlServer", "Postgres") to the `ISqlRuleExecutor`. Implementations of the executor use this to resolve the correct `IRuleDbProvider`.
+## 4. AI Rule Generation Prompts & Compliant Output Examples
 
-## 5. Security & Sandboxing (CRITICAL)
+### C# Rule Generation Prompt Example
+> *"Generate a C# Business Rule script that checks if `OrderTotal` in `Context` exceeds $100. If so, log a message and return 15.0 discount, otherwise return 0.0."*
 
-AI agents generating rules must adhere to these constraints to avoid execution errors.
+#### Compliant C# Script Output:
+```csharp
+if (OrderTotal > 100.0)
+{
+    Log("High value order discount applied.");
+    return 15.0;
+}
+return 0.0;
+```
 
-### C# Scripting Restrictions
-- **Default Timeout**: **10 seconds**.
-- **Override Keys**: `RulesEngine:ScriptTimeoutSeconds` (preferred), `RulesEngine:ScriptTimeout` (fallback).
-- **Namespace Whitelist**:
-  - `System`, `System.Linq`, `System.Collections.Generic`
-  - `System.Text`, `System.Threading.Tasks`
-- **Forbidden**: `System.IO`, `System.Net`, `System.Diagnostics`, `System.Reflection`.
+### T-SQL Rule Generation Prompt Example (SQL Server)
+> *"Generate a SQL Server T-SQL rule that receives the customer ID from the previous rule result (`@PreviousResultJson`) and queries VIP status."*
 
-### T-SQL Sandboxing
-- **Default Timeout**: **30 seconds**.
-- **Override Keys**: `RulesEngine:SqlTimeoutSeconds` (preferred), `RulesEngine:SqlTimeout` (fallback), `RulesEngine:CommandTimeout` (fallback).
-- **Forbidden SQL Keywords (Default)**: `DROP`, `TRUNCATE`, `DELETE`, `UPDATE`, `INSERT`, `GRANT`, `REVOKE`, `CREATE`, `ALTER`, `xp_cmdshell`, `sys.`, `information_schema`.
-- **Override Keywords**: Set `RulesEngine:ForbiddenSqlKeywords` to replace the default list.
-- **Reference**: For full details on forbidden keywords and C# script sandbox customization, see [forbidden_keywords_modification.md](forbidden_keywords_modification.md).
+#### Compliant T-SQL Script Output:
+```sql
+SELECT TOP 1 CustomerId, VIPStatus 
+FROM dbo.Customers 
+CROSS APPLY OPENJSON(@PreviousResultJson) WITH (CustomerId INT '$.CustomerId') p
+WHERE dbo.Customers.CustomerId = p.CustomerId;
+```
 
-### Security and Timeout Override Example
-The engine reads values from `IConfiguration` at startup. If the configured timeout value is missing, invalid, or `<= 0`, the engine falls back to defaults (10s C#, 30s SQL).
+---
+
+## 5. Non-Blocking Asynchronous Web API Pattern (AI Integration Template)
+
+When instructing an AI to implement an API controller that executes business rule bundles asynchronously:
+
+```csharp
+[ApiController]
+[Route("api/rules")]
+public class BusinessRuleController : ControllerBase
+{
+    private readonly BusinessRuleEngine<MyAppContext> _engine;
+    private readonly IBusinessRuleStore _store;
+    private readonly IBundleExecutionTracker _tracker;
+
+    public BusinessRuleController(
+        BusinessRuleEngine<MyAppContext> engine,
+        IBusinessRuleStore store,
+        IBundleExecutionTracker tracker)
+    {
+        _engine = engine;
+        _store = store;
+        _tracker = tracker;
+    }
+
+    [HttpPost("bundle/{bundleName}/execute-async")]
+    public async Task<IActionResult> ExecuteBundleAsync(string bundleName, [FromBody] MyAppContext context)
+    {
+        var bundle = await _store.GetBusinessRuleBundleByNameAsync(bundleName);
+        if (bundle == null) return NotFound($"Bundle '{bundleName}' not found.");
+
+        // 1. Pre-populate initial 'Pending' execution state
+        var executionState = await _tracker.CreateExecutionAsync(bundle);
+        Guid executionId = executionState.ExecutionId;
+
+        // 2. Fire and forget in background task (non-blocking)
+        _ = Task.Run(async () =>
+        {
+            await _engine.ExecuteBundleAsync(
+                bundle, 
+                context, 
+                appendLog: null, 
+                tracker: _tracker, 
+                executionId: executionId);
+        });
+
+        // 3. Return 202 Accepted immediately with tracking ID
+        return Accepted(new { executionId, status = "Pending" });
+    }
+
+    [HttpGet("status/{executionId:guid}")]
+    public async Task<IActionResult> GetStatus(Guid executionId)
+    {
+        var status = await _tracker.GetExecutionAsync(executionId);
+        if (status == null) return NotFound($"Execution ID '{executionId}' not found.");
+        return Ok(status);
+    }
+}
+```
+
+---
+
+## 6. Categorization & Tag Searching (AI Integration Pattern)
+
+AI agents can search or filter rules and bundles by category or tag using the `IBusinessRuleStore` search methods:
+
+```csharp
+// Retrieve all security or compliance rules
+var securityRules = await store.GetRulesByCategoryAsync("Security");
+
+// Retrieve all nightly automated bundles
+var nightlyBundles = await store.GetBundlesByTagAsync("Nightly");
+```
+
+---
+
+## 7. Configuration Keys
+
+Customize timeouts and security settings in `appsettings.json`:
 
 ```json
 {
+  "Security": {
+    "EncryptionKey": "YourSecretEncryptionKeyHere"
+  },
   "RulesEngine": {
     "SqlTimeoutSeconds": 60,
     "ScriptTimeoutSeconds": 15,
@@ -99,57 +206,30 @@ The engine reads values from `IConfiguration` at startup. If the configured time
       "INSERT",
       "ALTER",
       "CREATE",
-      "xp_cmdshell",
-      "sys.",
-      "information_schema"
+      "xp_cmdshell"
+    ],
+    "WithReferences": [
+      "System.Runtime",
+      "System.Linq",
+      "System.Text.Json"
+    ],
+    "WithImports": [
+      "System",
+      "System.Collections.Generic",
+      "System.Linq"
     ]
   }
 }
 ```
 
-## 6. Integration Guide
+---
 
-### Dependency Injection Setup
-To use the engine, you must register a SQL executor (e.g., one using Dapper).
+## 8. AI Implementation Checklist
 
-```csharp
-services.AddSingleton<IEncryptionService, AesEncryptionService>();
-services.AddScoped<IBusinessRuleStore, MySqlRuleStore>();
-services.AddScoped<IRuleDbProvider, SqlServerRuleDbProvider>();
+When integrating or testing `EtlAnalytics.RulesEngine` with AI tools:
 
-// Register the SQL Executor (via Core or Dapper extension)
-services.AddScoped<ISqlRuleExecutor, DapperSqlRuleExecutor>();
-
-// Register Execution Tracking (for async monitoring)
-services.AddBusinessRulesEngineTracking();
-
-// Register any other executors (extensions)
-services.AddJavascriptRules(); 
-
-services.AddScoped<BusinessRuleEngine<MyCustomContext>>();
-```
-
-### Execution Flow & Asynchronous Monitoring
-1. Retrieve Rule/Bundle from Store.
-2. Initialize `TContext`.
-3. (Optional) Call `tracker.CreateExecutionAsync(bundle)` to pre-populate `Pending` status tree.
-4. Call `ExecuteRuleAsync` or `ExecuteBundleAsync(bundle, context, appendLog, tracker, executionId)`.
-5. Engine updates granular sequence and rule statuses (`Pending` $\rightarrow$ `Starting` $\rightarrow$ `Completed` / `Failed` / `Skipped`) in `IBundleExecutionTracker`.
-6. Callers or web APIs poll `tracker.GetExecutionAsync(executionId)` or subscribe to `tracker.OnStatusChanged`.
-
-## 7. C# Rule Development Patterns
-(Unchanged from previous versions)
-
-## 8. T-SQL Rule Development Patterns
-SQL rules are executed via the registered `ISqlRuleExecutor`. By default, this supports Dapper-style parameter binding (`@PreviousResultJson`).
-
-## 9. Configuration Keys
-The `AesEncryptionService` expects:
-- Environment Variable: `DB_ENCRYPTION_KEY`
-- OR Configuration: `Security:EncryptionKey`
-
-The `BusinessRuleEngine` also supports:
-- `RulesEngine:SqlTimeoutSeconds` (or `RulesEngine:SqlTimeout`, `RulesEngine:CommandTimeout`)
-- `RulesEngine:ScriptTimeoutSeconds` (or `RulesEngine:ScriptTimeout`)
-- `RulesEngine:ForbiddenSqlKeywords`
-- `RulesEngine:WithReferences`, `RulesEngine:WithImports`
+- [x] Ensure `TContext` inherits from `RuleExecutionContext`.
+- [x] Register `services.AddBusinessRulesEngineTracking()` in DI for execution tracking.
+- [x] Run startup table migrations using `SqlDatabaseService.CreateBusinessRuleTablesIfNotExistsAsync()` or [SCHEMA_UPGRADE.md](SCHEMA_UPGRADE.md).
+- [x] Verify C# scripts do not import blocked namespaces (`System.IO`, `System.Net`).
+- [x] Verify T-SQL rules use Stored Procedures (`EXEC`) for database writes instead of direct `UPDATE`/`INSERT`.

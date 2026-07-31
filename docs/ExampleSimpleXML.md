@@ -25,6 +25,14 @@ Place this `rules.xml` file in your application directory:
         var total = PreviousResult != null ? (double)PreviousResult : 150.0;
         return total > 100.0 ? "HighValueOrder" : "StandardOrder";
       ]]></Code>
+      <Categories>
+        <Category>Validation</Category>
+        <Category>Finance</Category>
+      </Categories>
+      <Tags>
+        <Tag>OrderValue</Tag>
+        <Tag>PCI-DSS</Tag>
+      </Tags>
     </BusinessRule>
     <BusinessRule>
       <Id>102</Id>
@@ -32,6 +40,12 @@ Place this `rules.xml` file in your application directory:
       <RuleType>TSQL</RuleType>
       <Code>SELECT CustomerId, TotalAmount FROM Orders WHERE TotalAmount > 500</Code>
       <ConnectionId>1</ConnectionId>
+      <Categories>
+        <Category>Security</Category>
+      </Categories>
+      <Tags>
+        <Tag>HighRisk</Tag>
+      </Tags>
     </BusinessRule>
   </Rules>
 
@@ -39,6 +53,12 @@ Place this `rules.xml` file in your application directory:
     <BusinessRuleBundle>
       <Id>1</Id>
       <Name>ValidationBundle</Name>
+      <Categories>
+        <Category>Validation</Category>
+      </Categories>
+      <Tags>
+        <Tag>Nightly</Tag>
+      </Tags>
       <Items>
         <BusinessRuleBundleItem>
           <BundleId>1</BundleId>
@@ -62,6 +82,12 @@ Place this `rules.xml` file in your application directory:
       <Name>DefaultConnection</Name>
       <ProviderType>SqlServer</ProviderType>
       <ConnectionString>Server=.;Database=RulesDb;Trusted_Connection=True;</ConnectionString>
+      <Categories>
+        <Category>Production</Category>
+      </Categories>
+      <Tags>
+        <Tag>Encrypted</Tag>
+      </Tags>
     </DbConnectionDefinition>
   </DbConnections>
 </RulesEngineData>
@@ -112,6 +138,16 @@ public class XmlRuleStore : IBusinessRuleStore
         return XDocument.Load(_xmlFilePath);
     }
 
+    private static List<string> ParseXmlList(XElement? parentElement, string elementName, string childName)
+    {
+        if (parentElement == null) return new List<string>();
+        return parentElement.Element(elementName)?
+            .Elements(childName)
+            .Select(e => e.Value)
+            .Where(v => !string.IsNullOrWhiteSpace(v))
+            .ToList() ?? new List<string>();
+    }
+
     public Task<BusinessRule?> GetBusinessRuleByIdAsync(int id)
     {
         var doc = LoadXml();
@@ -128,7 +164,9 @@ public class XmlRuleStore : IBusinessRuleStore
             Name = (string)element.Element("Name")!,
             RuleType = (string)element.Element("RuleType")!,
             Code = (string)element.Element("Code")!,
-            ConnectionId = connectionId
+            ConnectionId = connectionId,
+            Categories = ParseXmlList(element, "Categories", "Category"),
+            Tags = ParseXmlList(element, "Tags", "Tag")
         };
 
         return Task.FromResult<BusinessRule?>(rule);
@@ -146,6 +184,8 @@ public class XmlRuleStore : IBusinessRuleStore
         {
             Id = (int)bundleElement.Element("Id")!,
             Name = (string)bundleElement.Element("Name")!,
+            Categories = ParseXmlList(bundleElement, "Categories", "Category"),
+            Tags = ParseXmlList(bundleElement, "Tags", "Tag"),
             Items = new List<BusinessRuleBundleItem>()
         };
 
@@ -163,6 +203,74 @@ public class XmlRuleStore : IBusinessRuleStore
         return Task.FromResult<BusinessRuleBundle?>(bundle);
     }
 
+    public Task<IEnumerable<BusinessRule>> GetRulesByCategoryAsync(string category)
+    {
+        var doc = LoadXml();
+        var rules = doc.Descendants("BusinessRule")
+            .Select(e => new BusinessRule
+            {
+                Id = (int)e.Element("Id")!,
+                Name = (string)e.Element("Name")!,
+                RuleType = (string)e.Element("RuleType")!,
+                Code = (string)e.Element("Code")!,
+                Categories = ParseXmlList(e, "Categories", "Category"),
+                Tags = ParseXmlList(e, "Tags", "Tag")
+            })
+            .Where(r => r.Categories.Contains(category, StringComparer.OrdinalIgnoreCase));
+
+        return Task.FromResult<IEnumerable<BusinessRule>>(rules);
+    }
+
+    public Task<IEnumerable<BusinessRule>> GetRulesByTagAsync(string tag)
+    {
+        var doc = LoadXml();
+        var rules = doc.Descendants("BusinessRule")
+            .Select(e => new BusinessRule
+            {
+                Id = (int)e.Element("Id")!,
+                Name = (string)e.Element("Name")!,
+                RuleType = (string)e.Element("RuleType")!,
+                Code = (string)e.Element("Code")!,
+                Categories = ParseXmlList(e, "Categories", "Category"),
+                Tags = ParseXmlList(e, "Tags", "Tag")
+            })
+            .Where(r => r.Tags.Contains(tag, StringComparer.OrdinalIgnoreCase));
+
+        return Task.FromResult<IEnumerable<BusinessRule>>(rules);
+    }
+
+    public Task<IEnumerable<BusinessRuleBundle>> GetBundlesByCategoryAsync(string category)
+    {
+        var doc = LoadXml();
+        var bundles = doc.Descendants("BusinessRuleBundle")
+            .Select(b => new BusinessRuleBundle
+            {
+                Id = (int)b.Element("Id")!,
+                Name = (string)b.Element("Name")!,
+                Categories = ParseXmlList(b, "Categories", "Category"),
+                Tags = ParseXmlList(b, "Tags", "Tag")
+            })
+            .Where(b => b.Categories.Contains(category, StringComparer.OrdinalIgnoreCase));
+
+        return Task.FromResult<IEnumerable<BusinessRuleBundle>>(bundles);
+    }
+
+    public Task<IEnumerable<BusinessRuleBundle>> GetBundlesByTagAsync(string tag)
+    {
+        var doc = LoadXml();
+        var bundles = doc.Descendants("BusinessRuleBundle")
+            .Select(b => new BusinessRuleBundle
+            {
+                Id = (int)b.Element("Id")!,
+                Name = (string)b.Element("Name")!,
+                Categories = ParseXmlList(b, "Categories", "Category"),
+                Tags = ParseXmlList(b, "Tags", "Tag")
+            })
+            .Where(b => b.Tags.Contains(tag, StringComparer.OrdinalIgnoreCase));
+
+        return Task.FromResult<IEnumerable<BusinessRuleBundle>>(bundles);
+    }
+
     public Task<DbConnectionDefinition?> GetDbConnectionByIdAsync(int id)
     {
         var doc = LoadXml();
@@ -176,7 +284,9 @@ public class XmlRuleStore : IBusinessRuleStore
             Id = (int)element.Element("Id")!,
             Name = (string)element.Element("Name")!,
             ProviderType = (string)element.Element("ProviderType")!,
-            ConnectionString = (string)element.Element("ConnectionString")!
+            ConnectionString = (string)element.Element("ConnectionString")!,
+            Categories = ParseXmlList(element, "Categories", "Category"),
+            Tags = ParseXmlList(element, "Tags", "Tag")
         };
 
         return Task.FromResult<DbConnectionDefinition?>(connection);
@@ -191,7 +301,9 @@ public class XmlRuleStore : IBusinessRuleStore
                 Id = (int)e.Element("Id")!,
                 Name = (string)e.Element("Name")!,
                 ProviderType = (string)e.Element("ProviderType")!,
-                ConnectionString = (string)e.Element("ConnectionString")!
+                ConnectionString = (string)e.Element("ConnectionString")!,
+                Categories = ParseXmlList(e, "Categories", "Category"),
+                Tags = ParseXmlList(e, "Tags", "Tag")
             })
             .ToList();
 
@@ -225,6 +337,7 @@ public class Program
 
         services.AddSingleton<IConfiguration>(config);
         services.AddSingleton<IEncryptionService, AesEncryptionService>();
+        services.AddBusinessRulesEngineTracking();
         services.AddScoped<ISqlRuleExecutor, DapperSqlRuleExecutor>();
         services.AddScoped<IRuleDbProvider, SqlServerRuleDbProvider>();
         

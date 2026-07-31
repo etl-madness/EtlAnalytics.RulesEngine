@@ -96,14 +96,35 @@ public class SqlRuleStore : IBusinessRuleStore
         {
             var items = await _dataService.QueryListAsync<BusinessRuleBundleItem>(
                 "SELECT * FROM BusinessRuleBundleItems WHERE BundleId = @Id ORDER BY SequenceOrder",
-                new
-                {
-                    Id = bundle.Id
-                });
+                new { Id = bundle.Id });
             // Note: Rules with the same SequenceOrder will be executed in parallel by the engine
             bundle.Items = items.ToList();
         }
         return bundle;
+    }
+
+    public async Task<IEnumerable<BusinessRule>> GetRulesByCategoryAsync(string category)
+    {
+        var rules = await _dataService.QueryListAsync<BusinessRule>("SELECT * FROM BusinessRules WHERE IsActive = 1");
+        return rules.Where(r => r.Categories.Contains(category, StringComparer.OrdinalIgnoreCase));
+    }
+
+    public async Task<IEnumerable<BusinessRule>> GetRulesByTagAsync(string tag)
+    {
+        var rules = await _dataService.QueryListAsync<BusinessRule>("SELECT * FROM BusinessRules WHERE IsActive = 1");
+        return rules.Where(r => r.Tags.Contains(tag, StringComparer.OrdinalIgnoreCase));
+    }
+
+    public async Task<IEnumerable<BusinessRuleBundle>> GetBundlesByCategoryAsync(string category)
+    {
+        var bundles = await _dataService.QueryListAsync<BusinessRuleBundle>("SELECT * FROM BusinessRuleBundles WHERE IsActive = 1");
+        return bundles.Where(b => b.Categories.Contains(category, StringComparer.OrdinalIgnoreCase));
+    }
+
+    public async Task<IEnumerable<BusinessRuleBundle>> GetBundlesByTagAsync(string tag)
+    {
+        var bundles = await _dataService.QueryListAsync<BusinessRuleBundle>("SELECT * FROM BusinessRuleBundles WHERE IsActive = 1");
+        return bundles.Where(b => b.Tags.Contains(tag, StringComparer.OrdinalIgnoreCase));
     }
 
     public Task<DbConnectionDefinition?> GetDbConnectionByIdAsync(int id) =>
@@ -116,7 +137,7 @@ public class SqlRuleStore : IBusinessRuleStore
 ```
 
 ### 2.4 Dependency Injection & Execution
-Wire the Data Service and Rule Store into your container.
+Wire the Data Service, Execution Tracker, and Rule Store into your container.
 
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
@@ -137,8 +158,9 @@ var config = new ConfigurationBuilder()
 
 services.AddSingleton<IConfiguration>(config);
 
-// 2. Register Rules Engine (Core)
+// 2. Register Rules Engine (Core) & Execution Tracking
 services.AddSingleton<IEncryptionService, AesEncryptionService>();
+services.AddBusinessRulesEngineTracking();
 
 // 3. Register Dapper Executor & DB Providers (Dapper Package)
 services.AddScoped<ISqlRuleExecutor, DapperSqlRuleExecutor>();
