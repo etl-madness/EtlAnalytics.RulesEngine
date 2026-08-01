@@ -4,6 +4,18 @@
 
 This document provides a comprehensive architectural breakdown of the engine, its pluggable execution pipeline, sequence orchestration, asynchronous tracking framework, and security sandboxing.
 
+## Authorization Architecture Boundary
+
+The recommended authorization boundary is:
+- **Consuming application**: authentication, claims mapping, RBAC/group/ACL policy decisions.
+- **RulesEngine package**: policy enforcement integration points and actor metadata flow.
+
+This split preserves platform independence while keeping policy ownership in the host application.
+
+Related references:
+- `RBAC.md`
+- `RBAC_SCHEMA_DRAFT.md`
+
 ---
 
 ## 1. System Architecture Diagram

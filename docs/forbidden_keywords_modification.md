@@ -2,6 +2,10 @@
 
 This document explains how to manage and modify the list of prohibited SQL keywords as well as C# script references and imports in `EtlAnalytics.RulesEngine`.
 
+Important: keyword sandboxing is not a replacement for application-level authorization. CRUD and execution permissions should be enforced by the consuming application's RBAC/group/ACL policy layer.
+
+See `RBAC.md` for recommended policy flow.
+
 ## 1. Default Security Configuration
 The engine defines default forbidden keywords for SQL rules, and default assembly references and imports for C# rules within its internal logic.
 

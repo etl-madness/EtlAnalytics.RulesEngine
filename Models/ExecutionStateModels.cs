@@ -9,7 +9,10 @@ namespace EtlAnalytics.RulesEngine.Models;
 public class RuleExecutionState
 {
     /// <summary>Gets or sets the rule identifier.</summary>
-    public int RuleId { get; set; }
+    public int RuleId
+    {
+        get; set;
+    }
 
     /// <summary>Gets or sets the rule name.</summary>
     public string RuleName { get; set; } = string.Empty;
@@ -18,7 +21,10 @@ public class RuleExecutionState
     public string RuleType { get; set; } = string.Empty;
 
     /// <summary>Gets or sets the sequence order group this rule belongs to.</summary>
-    public int SequenceOrder { get; set; }
+    public int SequenceOrder
+    {
+        get; set;
+    }
 
     /// <summary>Gets or sets the categories associated with this rule.</summary>
     public List<string> Categories { get; set; } = new();
@@ -30,16 +36,28 @@ public class RuleExecutionState
     public ExecutionStatus Status { get; set; } = ExecutionStatus.Pending;
 
     /// <summary>Gets or sets the timestamp when execution started.</summary>
-    public DateTime? StartTime { get; set; }
+    public DateTime? StartTime
+    {
+        get; set;
+    }
 
     /// <summary>Gets or sets the timestamp when execution completed or failed.</summary>
-    public DateTime? EndTime { get; set; }
+    public DateTime? EndTime
+    {
+        get; set;
+    }
 
     /// <summary>Gets or sets the result produced by the rule, if any.</summary>
-    public object? Result { get; set; }
+    public object? Result
+    {
+        get; set;
+    }
 
     /// <summary>Gets or sets the error message if execution failed.</summary>
-    public string? ErrorMessage { get; set; }
+    public string? ErrorMessage
+    {
+        get; set;
+    }
 }
 
 /// <summary>
@@ -49,19 +67,31 @@ public class RuleExecutionState
 public class SequenceExecutionState
 {
     /// <summary>Gets or sets the sequence order number.</summary>
-    public int SequenceOrder { get; set; }
+    public int SequenceOrder
+    {
+        get; set;
+    }
 
     /// <summary>Gets or sets the overall sequence execution status.</summary>
     public ExecutionStatus Status { get; set; } = ExecutionStatus.Pending;
 
     /// <summary>Gets or sets the timestamp when sequence execution started.</summary>
-    public DateTime? StartTime { get; set; }
+    public DateTime? StartTime
+    {
+        get; set;
+    }
 
     /// <summary>Gets or sets the timestamp when sequence execution completed or failed.</summary>
-    public DateTime? EndTime { get; set; }
+    public DateTime? EndTime
+    {
+        get; set;
+    }
 
     /// <summary>Gets or sets the status message for the sequence.</summary>
-    public string? Message { get; set; }
+    public string? Message
+    {
+        get; set;
+    }
 
     /// <summary>Gets or sets the list of rule execution states in this sequence (includes parallel rules).</summary>
     public List<RuleExecutionState> Rules { get; set; } = new();
@@ -76,10 +106,43 @@ public class BundleExecutionState
     public Guid ExecutionId { get; set; } = Guid.NewGuid();
 
     /// <summary>Gets or sets the parent bundle identifier.</summary>
-    public int BundleId { get; set; }
+    public int BundleId
+    {
+        get; set;
+    }
 
     /// <summary>Gets or sets the bundle name.</summary>
     public string BundleName { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the stable actor identifier that initiated this execution.</summary>
+    public string? ExecutedBy
+    {
+        get; set;
+    }
+
+    /// <summary>Gets or sets the actor display name that initiated this execution.</summary>
+    public string? ExecutedByName
+    {
+        get; set;
+    }
+
+    /// <summary>Gets or sets the actor type (for example User, ServicePrincipal, or System).</summary>
+    public string? ActorType
+    {
+        get; set;
+    }
+
+    /// <summary>Gets or sets the authentication method reported by the consuming application.</summary>
+    public string? AuthMethod
+    {
+        get; set;
+    }
+
+    /// <summary>Gets or sets a correlation identifier linking this execution to an authorization decision trail.</summary>
+    public Guid? DecisionCorrelationId
+    {
+        get; set;
+    }
 
     /// <summary>Gets or sets the categories associated with this bundle.</summary>
     public List<string> Categories { get; set; } = new();
@@ -91,16 +154,28 @@ public class BundleExecutionState
     public ExecutionStatus Status { get; set; } = ExecutionStatus.Pending;
 
     /// <summary>Gets or sets the timestamp when bundle execution started.</summary>
-    public DateTime? StartTime { get; set; }
+    public DateTime? StartTime
+    {
+        get; set;
+    }
 
     /// <summary>Gets or sets the timestamp when bundle execution completed or failed.</summary>
-    public DateTime? EndTime { get; set; }
+    public DateTime? EndTime
+    {
+        get; set;
+    }
 
     /// <summary>Gets or sets the final return result of the bundle execution.</summary>
-    public object? FinalResult { get; set; }
+    public object? FinalResult
+    {
+        get; set;
+    }
 
     /// <summary>Gets or sets error details if the bundle execution failed.</summary>
-    public string? ErrorMessage { get; set; }
+    public string? ErrorMessage
+    {
+        get; set;
+    }
 
     /// <summary>Gets or sets the sequence execution states ordered by sequence number.</summary>
     public List<SequenceExecutionState> Sequences { get; set; } = new();
@@ -115,28 +190,52 @@ public class BundleExecutionState
 public class BundleProgressEventArgs : EventArgs
 {
     /// <summary>Gets the unique bundle execution identifier.</summary>
-    public Guid ExecutionId { get; }
+    public Guid ExecutionId
+    {
+        get;
+    }
 
     /// <summary>Gets the name of the bundle being executed.</summary>
-    public string BundleName { get; }
+    public string BundleName
+    {
+        get;
+    }
 
     /// <summary>Gets the sequence order associated with the progress event, if applicable.</summary>
-    public int? SequenceOrder { get; }
+    public int? SequenceOrder
+    {
+        get;
+    }
 
     /// <summary>Gets the rule identifier associated with the progress event, if applicable.</summary>
-    public int? RuleId { get; }
+    public int? RuleId
+    {
+        get;
+    }
 
     /// <summary>Gets the rule name associated with the progress event, if applicable.</summary>
-    public string? RuleName { get; }
+    public string? RuleName
+    {
+        get;
+    }
 
     /// <summary>Gets the status being reported.</summary>
-    public ExecutionStatus Status { get; }
+    public ExecutionStatus Status
+    {
+        get;
+    }
 
     /// <summary>Gets descriptive text or log snippet associated with the update.</summary>
-    public string Message { get; }
+    public string Message
+    {
+        get;
+    }
 
     /// <summary>Gets the full current state snapshot at the time of the event.</summary>
-    public BundleExecutionState CurrentState { get; }
+    public BundleExecutionState CurrentState
+    {
+        get;
+    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="BundleProgressEventArgs"/> class.

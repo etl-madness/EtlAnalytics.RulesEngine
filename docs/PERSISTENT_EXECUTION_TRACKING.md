@@ -7,6 +7,10 @@ Persisting execution logs to a database provides:
 - **Server Restart Resilience**: Progress state survives application pool recycles, container restarts, or deployments.
 - **Distributed Scale-Out**: Multiple API instances or worker nodes in a load-balanced cluster can share execution states.
 
+For end-to-end security auditing, capture actor metadata from the consuming application (for example: `ExecutedBy`, `ExecutedByName`, `AuthMethod`, and a policy decision correlation id).
+
+See `RBAC.md` and `RBAC_SCHEMA_DRAFT.md` for the recommended app-side authorization model.
+
 ---
 
 ## 1. Database Schemas
@@ -21,6 +25,11 @@ CREATE TABLE dbo.BundleExecutionLogs (
     ExecutionId UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
     BundleId INT NOT NULL,
     BundleName NVARCHAR(255) NOT NULL,
+    ExecutedBy NVARCHAR(255) NULL,
+    ExecutedByName NVARCHAR(255) NULL,
+    ActorType NVARCHAR(50) NULL,
+    AuthMethod NVARCHAR(50) NULL,
+    DecisionCorrelationId UNIQUEIDENTIFIER NULL,
     Categories NVARCHAR(MAX) NULL,
     Tags NVARCHAR(MAX) NULL,
     Status NVARCHAR(50) NOT NULL, -- Pending, Starting, Completed, Failed, Skipped
@@ -72,6 +81,11 @@ CREATE TABLE BundleExecutionLogs (
     ExecutionId UUID PRIMARY KEY,
     BundleId INT NOT NULL,
     BundleName VARCHAR(255) NOT NULL,
+    ExecutedBy VARCHAR(255) NULL,
+    ExecutedByName VARCHAR(255) NULL,
+    ActorType VARCHAR(50) NULL,
+    AuthMethod VARCHAR(50) NULL,
+    DecisionCorrelationId UUID NULL,
     Status VARCHAR(50) NOT NULL,
     StartTime TIMESTAMP NULL,
     EndTime TIMESTAMP NULL,
@@ -115,6 +129,11 @@ CREATE TABLE BundleExecutionLogs (
     ExecutionId CHAR(36) PRIMARY KEY,
     BundleId INT NOT NULL,
     BundleName VARCHAR(255) NOT NULL,
+    ExecutedBy VARCHAR(255) NULL,
+    ExecutedByName VARCHAR(255) NULL,
+    ActorType VARCHAR(50) NULL,
+    AuthMethod VARCHAR(50) NULL,
+    DecisionCorrelationId CHAR(36) NULL,
     Status VARCHAR(50) NOT NULL,
     StartTime DATETIME NULL,
     EndTime DATETIME NULL,
@@ -184,6 +203,11 @@ public class SqlBundleExecutionTracker : IBundleExecutionTracker
 
     public async Task<BundleExecutionState> CreateExecutionAsync(BusinessRuleBundle bundle, Guid? executionId = null)
     {
+        return await CreateExecutionAsync(bundle, executionId, actorContext: null);
+    }
+
+    public async Task<BundleExecutionState> CreateExecutionAsync(BusinessRuleBundle bundle, Guid? executionId, ExecutionActorContext? actorContext)
+    {
         Guid id = executionId ?? Guid.NewGuid();
 
         var state = new BundleExecutionState
@@ -191,6 +215,11 @@ public class SqlBundleExecutionTracker : IBundleExecutionTracker
             ExecutionId = id,
             BundleId = bundle.Id,
             BundleName = bundle.Name,
+            ExecutedBy = actorContext?.ActorId,
+            ExecutedByName = actorContext?.ActorName,
+            ActorType = actorContext?.ActorType,
+            AuthMethod = actorContext?.AuthMethod,
+            DecisionCorrelationId = actorContext?.DecisionCorrelationId,
             Status = ExecutionStatus.Pending
         };
 
@@ -199,9 +228,22 @@ public class SqlBundleExecutionTracker : IBundleExecutionTracker
         using var tx = db.BeginTransaction();
 
         await db.ExecuteAsync(@"
-            INSERT INTO dbo.BundleExecutionLogs (ExecutionId, BundleId, BundleName, Status, Logs)
-            VALUES (@ExecutionId, @BundleId, @BundleName, @Status, '[]')",
-            new { ExecutionId = id, bundle.Id, BundleName = bundle.Name, Status = ExecutionStatus.Pending.ToString() }, tx);
+            INSERT INTO dbo.BundleExecutionLogs
+            (ExecutionId, BundleId, BundleName, ExecutedBy, ExecutedByName, ActorType, AuthMethod, DecisionCorrelationId, Status, Logs)
+            VALUES
+            (@ExecutionId, @BundleId, @BundleName, @ExecutedBy, @ExecutedByName, @ActorType, @AuthMethod, @DecisionCorrelationId, @Status, '[]')",
+            new
+            {
+                ExecutionId = id,
+                bundle.Id,
+                BundleName = bundle.Name,
+                ExecutedBy = actorContext?.ActorId,
+                ExecutedByName = actorContext?.ActorName,
+                ActorType = actorContext?.ActorType,
+                AuthMethod = actorContext?.AuthMethod,
+                DecisionCorrelationId = actorContext?.DecisionCorrelationId,
+                Status = ExecutionStatus.Pending.ToString()
+            }, tx);
 
         var groupedItems = bundle.Items.GroupBy(i => i.SequenceOrder).OrderBy(g => g.Key);
 
@@ -327,7 +369,7 @@ public class SqlBundleExecutionTracker : IBundleExecutionTracker
         using var db = _dbProvider.CreateConnection(_connectionString);
         
         var bundleLog = await db.QueryFirstOrDefaultAsync(@"
-            SELECT ExecutionId, BundleId, BundleName, Status, StartTime, EndTime, ErrorMessage, Logs
+            SELECT ExecutionId, BundleId, BundleName, ExecutedBy, ExecutedByName, ActorType, AuthMethod, DecisionCorrelationId, Status, StartTime, EndTime, ErrorMessage, Logs
             FROM dbo.BundleExecutionLogs WHERE ExecutionId = @ExecutionId", new { ExecutionId = executionId });
 
         if (bundleLog == null) return null;
@@ -337,6 +379,11 @@ public class SqlBundleExecutionTracker : IBundleExecutionTracker
             ExecutionId = bundleLog.ExecutionId,
             BundleId = bundleLog.BundleId,
             BundleName = bundleLog.BundleName,
+            ExecutedBy = bundleLog.ExecutedBy,
+            ExecutedByName = bundleLog.ExecutedByName,
+            ActorType = bundleLog.ActorType,
+            AuthMethod = bundleLog.AuthMethod,
+            DecisionCorrelationId = bundleLog.DecisionCorrelationId,
             Status = Enum.Parse<ExecutionStatus>((string)bundleLog.Status),
             StartTime = bundleLog.StartTime,
             EndTime = bundleLog.EndTime,
@@ -414,7 +461,98 @@ builder.Services.AddScoped<IBundleExecutionTracker>(sp =>
 
 ---
 
-## 4. Log Retention & Automated Cleanup Strategy
+## 4. Migration Appendix: Add Actor Metadata Columns to Existing Tables
+
+If you already have `BundleExecutionLogs` tables in production, apply one of the following idempotent migration scripts.
+
+### SQL Server (Idempotent)
+
+```sql
+IF OBJECT_ID('dbo.BundleExecutionLogs', 'U') IS NOT NULL
+BEGIN
+    IF COL_LENGTH('dbo.BundleExecutionLogs', 'ExecutedBy') IS NULL
+        ALTER TABLE dbo.BundleExecutionLogs ADD ExecutedBy NVARCHAR(255) NULL;
+
+    IF COL_LENGTH('dbo.BundleExecutionLogs', 'ExecutedByName') IS NULL
+        ALTER TABLE dbo.BundleExecutionLogs ADD ExecutedByName NVARCHAR(255) NULL;
+
+    IF COL_LENGTH('dbo.BundleExecutionLogs', 'ActorType') IS NULL
+        ALTER TABLE dbo.BundleExecutionLogs ADD ActorType NVARCHAR(50) NULL;
+
+    IF COL_LENGTH('dbo.BundleExecutionLogs', 'AuthMethod') IS NULL
+        ALTER TABLE dbo.BundleExecutionLogs ADD AuthMethod NVARCHAR(50) NULL;
+
+    IF COL_LENGTH('dbo.BundleExecutionLogs', 'DecisionCorrelationId') IS NULL
+        ALTER TABLE dbo.BundleExecutionLogs ADD DecisionCorrelationId UNIQUEIDENTIFIER NULL;
+END;
+```
+
+### PostgreSQL (Idempotent)
+
+```sql
+ALTER TABLE IF EXISTS BundleExecutionLogs ADD COLUMN IF NOT EXISTS ExecutedBy VARCHAR(255) NULL;
+ALTER TABLE IF EXISTS BundleExecutionLogs ADD COLUMN IF NOT EXISTS ExecutedByName VARCHAR(255) NULL;
+ALTER TABLE IF EXISTS BundleExecutionLogs ADD COLUMN IF NOT EXISTS ActorType VARCHAR(50) NULL;
+ALTER TABLE IF EXISTS BundleExecutionLogs ADD COLUMN IF NOT EXISTS AuthMethod VARCHAR(50) NULL;
+ALTER TABLE IF EXISTS BundleExecutionLogs ADD COLUMN IF NOT EXISTS DecisionCorrelationId UUID NULL;
+```
+
+### MySQL (Idempotent)
+
+```sql
+DROP PROCEDURE IF EXISTS UpgradeBundleExecutionActorColumns;
+DELIMITER //
+CREATE PROCEDURE UpgradeBundleExecutionActorColumns()
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = DATABASE() AND table_name = 'BundleExecutionLogs'
+    ) THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = DATABASE() AND table_name = 'BundleExecutionLogs' AND column_name = 'ExecutedBy'
+        ) THEN
+            ALTER TABLE BundleExecutionLogs ADD COLUMN ExecutedBy VARCHAR(255) NULL;
+        END IF;
+
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = DATABASE() AND table_name = 'BundleExecutionLogs' AND column_name = 'ExecutedByName'
+        ) THEN
+            ALTER TABLE BundleExecutionLogs ADD COLUMN ExecutedByName VARCHAR(255) NULL;
+        END IF;
+
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = DATABASE() AND table_name = 'BundleExecutionLogs' AND column_name = 'ActorType'
+        ) THEN
+            ALTER TABLE BundleExecutionLogs ADD COLUMN ActorType VARCHAR(50) NULL;
+        END IF;
+
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = DATABASE() AND table_name = 'BundleExecutionLogs' AND column_name = 'AuthMethod'
+        ) THEN
+            ALTER TABLE BundleExecutionLogs ADD COLUMN AuthMethod VARCHAR(50) NULL;
+        END IF;
+
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = DATABASE() AND table_name = 'BundleExecutionLogs' AND column_name = 'DecisionCorrelationId'
+        ) THEN
+            ALTER TABLE BundleExecutionLogs ADD COLUMN DecisionCorrelationId CHAR(36) NULL;
+        END IF;
+    END IF;
+END //
+DELIMITER ;
+
+CALL UpgradeBundleExecutionActorColumns();
+DROP PROCEDURE IF EXISTS UpgradeBundleExecutionActorColumns;
+```
+
+---
+
+## 5. Log Retention & Automated Cleanup Strategy
 
 To prevent tracking tables from growing indefinitely, set up a recurring SQL job or background service to purge execution logs older than a target retention window (e.g. 30 days):
 

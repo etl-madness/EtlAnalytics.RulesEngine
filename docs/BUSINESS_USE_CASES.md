@@ -2,6 +2,18 @@
 
 This document outlines key real-world business use cases and architectural patterns solved by `EtlAnalytics.RulesEngine`. By decoupling business logic from application code, organizations can dynamically alter system behavior, enforce security policies, and update business rules without code changes or redeployments.
 
+## Authorization Governance Use Case
+
+In regulated environments, applications commonly apply Hybrid RBAC + Group + ACL policies to control who can create, edit, delete, and execute rules and bundles.
+
+Recommended pattern:
+- Use application authentication and claims mapping for identity.
+- Use role and group grants for baseline access.
+- Use per-resource ACL entries for exceptions.
+- Keep explicit deny precedence to reduce risk.
+
+See `RBAC.md` and `RBAC_SCHEMA_DRAFT.md` for implementation details.
+
 ---
 
 ## 1. Zero-Day Exploit & Vulnerability Hot-Remediation 🛡️

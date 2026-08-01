@@ -2,6 +2,8 @@
 
 This guide provides a complete, end-to-end example of how to build a dynamic discount engine using both the core **RulesEngine** and the **Dapper** extension package.
 
+Before wiring execution endpoints, integrate application-side authorization checks for rule, bundle, and connection access. See `RBAC.md` for processing flow and `RBAC_SCHEMA_DRAFT.md` for schema guidance.
+
 ## 1. Required NuGet Packages
 Ensure your project file (or `dotnet add package` commands) includes:
 - `EtlAnalytics.RulesEngine`
@@ -166,6 +168,9 @@ services.AddBusinessRulesEngineTracking();
 services.AddScoped<ISqlRuleExecutor, DapperSqlRuleExecutor>();
 services.AddScoped<IRuleDbProvider, SqlServerRuleDbProvider>();
 
+// 3.1 Register application authorization policy service
+services.AddBusinessRulesEngineAuthorization<MyRuleAuthorizationService>();
+
 // 4. Register Executors (Default TSQL and CSharp are auto-added by engine if not registered)
 // But we can add extensions like Javascript here:
 // services.AddJavascriptRules(); 
@@ -200,6 +205,41 @@ var result = await engine.ExecuteBundleAsync("DiscountBundle", context, log => {
 });
 
 Console.WriteLine($"Final Discount Applied: {result}");
+```
+
+### 2.5 Authorization Service Example
+
+The application decides authorization and the package enforces it via hooks.
+
+```csharp
+using EtlAnalytics.RulesEngine.Interfaces;
+using EtlAnalytics.RulesEngine.Models;
+
+public class MyRuleAuthorizationService : IRuleAuthorizationService
+{
+        public Task<bool> AuthorizeAsync(AuthorizationRequest request, ExecutionActorContext? actorContext = null, CancellationToken cancellationToken = default)
+        {
+                // Example policy: only users with ActorType=Admin can execute bundles.
+                if (request.ResourceType == "Bundle" && request.Action == "Execute")
+                {
+                        return Task.FromResult(string.Equals(actorContext?.ActorType, "Admin", StringComparison.OrdinalIgnoreCase));
+                }
+
+                return Task.FromResult(true);
+        }
+}
+```
+
+Optional fail-closed setting for production:
+
+```json
+{
+    "RulesEngine": {
+        "Authorization": {
+            "FailClosed": true
+        }
+    }
+}
 ```
 
 ---

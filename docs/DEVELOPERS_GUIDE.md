@@ -15,6 +15,49 @@ Before extending the engine, understand the architectural split between the Core
 
 The **Core package** is the "Brain" and contains all the logic for bundle orchestration and C# sandboxing. The **Dapper package** is the "Hands", providing the concrete implementation for database communication.
 
+## Authorization Integration Baseline
+
+Recommended best-practice split:
+- The consuming application owns authentication integration and authorization decisions (RBAC, group mappings, ACL evaluation).
+- The package provides reusable enforcement points and execution actor metadata propagation.
+
+Process order recommendation:
+1. Explicit deny ACL.
+2. Explicit allow ACL.
+3. Role or group grant.
+4. Optional owner fallback.
+5. Default deny.
+
+See `RBAC.md` and `RBAC_SCHEMA_DRAFT.md` for full flow and schema guidance.
+
+### Authorization Service Registration
+
+Register one of the following:
+
+```csharp
+// Development-only permissive policy
+services.AddBusinessRulesEngineAuthorization();
+
+// Production policy service
+services.AddBusinessRulesEngineAuthorization<MyRuleAuthorizationService>();
+```
+
+Enable fail-closed mode if you want all execution paths to require a policy provider:
+
+```json
+{
+  "RulesEngine": {
+    "Authorization": {
+      "FailClosed": true
+    }
+  }
+}
+```
+
+Equivalent configuration aliases are also supported:
+- `RulesEngine:Authorization:RequirePolicyService`
+- `RulesEngine:RequireAuthorizationService`
+
 ## 1. Connection String Management
 
 The engine resolves its primary connection string (used for the rule store and default SQL execution) using a hierarchical approach.
@@ -270,5 +313,36 @@ When persisting rules, bundles, or connections in relational databases (SQL Serv
 - `GetRulesByTagAsync(tag)`
 - `GetBundlesByCategoryAsync(category)`
 - `GetBundlesByTagAsync(tag)`
+
+---
+
+## 8. Production Secure Defaults Checklist
+
+Use this checklist before enabling rules in production workloads:
+
+1. Authorization
+- Register a custom `IRuleAuthorizationService` using `AddBusinessRulesEngineAuthorization<TAuthorizationService>()`.
+- Enable fail-closed mode: `RulesEngine:Authorization:FailClosed=true`.
+- Confirm policy coverage for `Bundle:Execute`, `Rule:Execute`, and `Connection:Use` decisions.
+
+2. Identity and actor metadata
+- Populate `RuleExecutionContext.ActorContext` for every execution request.
+- Persist actor fields (`ExecutedBy`, `ExecutedByName`, `AuthMethod`, `DecisionCorrelationId`) in execution logs.
+- Persist lifecycle fields (`CreatedBy`, `ModifiedBy`, ownership fields) for rules, bundles, and connections.
+
+3. SQL and script safety
+- Keep forbidden SQL keywords configured with least-privilege assumptions.
+- Keep script and SQL timeouts explicit (`ScriptTimeoutSeconds`, `SqlTimeoutSeconds`).
+- Use least-privilege database credentials; avoid elevated roles.
+
+4. Operational controls
+- Run in observe mode first (decision logging enabled, no policy gaps).
+- Add alerting for denied authorization and repeated security exceptions.
+- Validate fallback behavior for background workers and async execution paths.
+
+5. Verification
+- Run automated authorization tests (deny precedence, callback precedence, fail-closed enforcement).
+- Validate persistent tracker reads/writes include new actor metadata fields.
+- Review release notes and migration docs before deployment.
 
 

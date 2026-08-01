@@ -2,6 +2,8 @@
 
 This example provides a single-file `Program.cs` approach for a console application that can execute either a single Rule or a Rule Bundle based on command-line arguments.
 
+If this pattern is moved into production services, add application-side authorization checks before invoking rule or bundle execution. Recommended processing order is documented in `RBAC.md`.
+
 ## BusinessRulesEngineExample Project
 You can clone or download the full example project from the link below.
 

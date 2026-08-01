@@ -2,6 +2,10 @@
 
 `EtlAnalytics.RulesEngine` provides built-in, thread-safe execution tracking for business rule bundles. This feature enables hosts (such as Web APIs, background workers, or CLI services) to trigger long-running rule bundles asynchronously, track step-by-step sequence and parallel rule progress (`Pending` $\rightarrow$ `Starting` $\rightarrow$ `Completed` / `Failed`), and query progress without blocking client requests.
 
+Before starting execution, the consuming application should run authorization preflight checks for bundle, rule, and connection access based on its RBAC/group/ACL policy engine.
+
+See `RBAC.md` for processing order and `RBAC_SCHEMA_DRAFT.md` for persistence recommendations.
+
 ---
 
 ## Key Features

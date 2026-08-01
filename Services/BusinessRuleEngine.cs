@@ -18,6 +18,8 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
 {
     private readonly IBusinessRuleStore _ruleStore;
     private readonly IEnumerable<IRuleExecutor> _executors;
+    private readonly IRuleAuthorizationService? _authorizationService;
+    private readonly bool _authorizationFailClosed;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="BusinessRuleEngine{TContext}"/> class.
@@ -27,15 +29,19 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
     /// <param name="sqlExecutor">The executor used for running SQL rules.</param>
     /// <param name="encryptionService">The service used for decrypting sensitive data.</param>
     /// <param name="executors">The collection of rule executors.</param>
+    /// <param name="authorizationService">Optional host-provided authorization policy evaluator.</param>
     public BusinessRuleEngine(
         IConfiguration configuration,
         IBusinessRuleStore ruleStore,
         ISqlRuleExecutor sqlExecutor,
         IEncryptionService encryptionService,
-        IEnumerable<IRuleExecutor> executors)
+        IEnumerable<IRuleExecutor> executors,
+        IRuleAuthorizationService? authorizationService = null)
     {
         _ruleStore = ruleStore;
-        
+        _authorizationService = authorizationService;
+        _authorizationFailClosed = LoadAuthorizationFailClosed(configuration);
+
         // Combine provided executors with default ones if they are not already there
         var executorList = executors.ToList();
 
@@ -144,6 +150,15 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
         };
     }
 
+    private bool LoadAuthorizationFailClosed(IConfiguration configuration)
+    {
+        var failClosedStr = configuration["RulesEngine:Authorization:FailClosed"]
+            ?? configuration["RulesEngine:Authorization:RequirePolicyService"]
+            ?? configuration["RulesEngine:RequireAuthorizationService"];
+
+        return bool.TryParse(failClosedStr, out var parsed) && parsed;
+    }
+
     /// <summary>
     /// Executes a single business rule asynchronously.
     /// </summary>
@@ -152,6 +167,37 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
         TContext? globals = null,
         Action<string>? appendLog = null)
     {
+        return await ExecuteRuleAsync(rule, globals, appendLog, authorizeAsync: null);
+    }
+
+    /// <summary>
+    /// Executes a single business rule asynchronously with optional application-side authorization callback.
+    /// </summary>
+    public async Task<object?> ExecuteRuleAsync(
+        BusinessRule rule,
+        TContext? globals,
+        Action<string>? appendLog,
+        Func<AuthorizationRequest, Task<bool>>? authorizeAsync)
+    {
+        await EnsureAuthorizedAsync(authorizeAsync, globals?.ActorContext, new AuthorizationRequest
+        {
+            ResourceType = "Rule",
+            ResourceId = rule.Id.ToString(),
+            Action = "Execute",
+            Reason = $"ExecuteRuleAsync:{rule.Name}"
+        });
+
+        if (rule.ConnectionId.HasValue)
+        {
+            await EnsureAuthorizedAsync(authorizeAsync, globals?.ActorContext, new AuthorizationRequest
+            {
+                ResourceType = "Connection",
+                ResourceId = rule.ConnectionId.Value.ToString(),
+                Action = "Use",
+                Reason = $"RuleConnection:{rule.Name}"
+            });
+        }
+
         if (globals != null)
         {
             globals.RunBundle = async (name) =>
@@ -163,7 +209,14 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
                     return null;
                 }
                 appendLog?.Invoke($"[INFO] Triggering nested bundle: {name}");
-                return await ExecuteBundleAsync(bundle, globals, appendLog);
+                return await ExecuteBundleAsync(
+                    bundle,
+                    globals,
+                    appendLog,
+                    tracker: null,
+                    executionId: null,
+                    actorContext: globals.ActorContext,
+                    authorizeAsync: authorizeAsync);
             };
         }
 
@@ -194,7 +247,7 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
         TContext baseContext,
         Action<string>? appendLog = null)
     {
-        return ExecuteBundleAsync(bundle, baseContext, appendLog, tracker: null, executionId: null);
+        return ExecuteBundleAsync(bundle, baseContext, appendLog, tracker: null, executionId: null, actorContext: baseContext.ActorContext, authorizeAsync: null);
     }
 
     /// <summary>
@@ -205,14 +258,29 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
     /// <param name="appendLog">Optional delegate for receiving plain text log messages.</param>
     /// <param name="tracker">Optional execution tracker instance to update status changes in real time.</param>
     /// <param name="executionId">Optional execution identifier. If null and tracker is provided, a new execution entry will be created.</param>
+    /// <param name="actorContext">Optional normalized actor context for execution-level auditing.</param>
+    /// <param name="authorizeAsync">Optional application-side authorization callback used for resource checks.</param>
     /// <returns>The result of the final executed step in the bundle.</returns>
     public async Task<object?> ExecuteBundleAsync(
         BusinessRuleBundle bundle,
         TContext baseContext,
         Action<string>? appendLog,
         IBundleExecutionTracker? tracker,
-        Guid? executionId = null)
+        Guid? executionId = null,
+        ExecutionActorContext? actorContext = null,
+        Func<AuthorizationRequest, Task<bool>>? authorizeAsync = null)
     {
+        actorContext ??= baseContext.ActorContext;
+        baseContext.ActorContext = actorContext;
+
+        await EnsureAuthorizedAsync(authorizeAsync, actorContext, new AuthorizationRequest
+        {
+            ResourceType = "Bundle",
+            ResourceId = bundle.Id.ToString(),
+            Action = "Execute",
+            Reason = $"ExecuteBundleAsync:{bundle.Name}"
+        });
+
         Guid execId = executionId ?? Guid.NewGuid();
 
         if (tracker != null)
@@ -220,7 +288,7 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
             var existing = await tracker.GetExecutionAsync(execId);
             if (existing == null)
             {
-                await tracker.CreateExecutionAsync(bundle, execId);
+                await tracker.CreateExecutionAsync(bundle, execId, actorContext);
             }
             await tracker.UpdateBundleStatusAsync(execId, ExecutionStatus.Starting, $"Starting execution of bundle '{bundle.Name}'");
         }
@@ -276,10 +344,10 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
                     }
 
                     log($"[BUNDLE] Step {sequenceOrder}: {rule.Name}");
-                    
+
                     try
                     {
-                        lastResult = await ExecuteRuleAsync(rule, baseContext, log);
+                        lastResult = await ExecuteRuleAsync(rule, baseContext, log, authorizeAsync);
                         if (tracker != null)
                         {
                             await tracker.UpdateRuleStatusAsync(execId, item.RuleId, sequenceOrder, ExecutionStatus.Completed, result: lastResult);
@@ -328,7 +396,7 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
 
                         try
                         {
-                            var result = await ExecuteRuleAsync(rule, baseContext, log);
+                            var result = await ExecuteRuleAsync(rule, baseContext, log, authorizeAsync);
                             if (tracker != null)
                             {
                                 await tracker.UpdateRuleStatusAsync(execId, item.RuleId, sequenceOrder, ExecutionStatus.Completed, result: result);
@@ -380,5 +448,36 @@ public class BusinessRuleEngine<TContext> where TContext : RuleExecutionContext
         }
 
         return lastResult;
+    }
+
+    private async Task EnsureAuthorizedAsync(
+        Func<AuthorizationRequest, Task<bool>>? authorizeAsync,
+        ExecutionActorContext? actorContext,
+        AuthorizationRequest request)
+    {
+        bool allowed;
+        if (authorizeAsync != null)
+        {
+            allowed = await authorizeAsync(request);
+        }
+        else if (_authorizationService != null)
+        {
+            allowed = await _authorizationService.AuthorizeAsync(request, actorContext);
+        }
+        else
+        {
+            if (_authorizationFailClosed)
+            {
+                throw new InvalidOperationException(
+                    "Authorization fail-closed mode is enabled, but no authorization callback or IRuleAuthorizationService was provided.");
+            }
+
+            return;
+        }
+
+        if (!allowed)
+        {
+            throw new UnauthorizedAccessException($"Access denied for action '{request.Action}' on resource '{request.ResourceType}:{request.ResourceId}'.");
+        }
     }
 }

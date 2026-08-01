@@ -1,5 +1,36 @@
 # Release Notes - EtlAnalytics.RulesEngine
 
+## [2.4.0] - 2026-08-01
+
+### 🚀 New Features
+- **Authorization Architecture Guidance (App/Package Split)**:
+    - Added a formal guidance model where policy authority remains in consuming applications and the package provides reusable enforcement hooks.
+    - Defined Hybrid RBAC + Group + per-resource ACL evaluation order with explicit deny precedence.
+- **Optional Authorization Enforcement Hooks (Code)**:
+    - Added `IRuleAuthorizationService` contract for host-provided policy checks.
+    - Added optional authorization callback support in `BusinessRuleEngine` for resource-level checks (`Bundle`, `Rule`, `Connection`).
+    - Added DI extension helpers for registering default or custom authorization services.
+    - Added configuration-driven fail-closed mode using `RulesEngine:Authorization:FailClosed` (aliases: `RulesEngine:Authorization:RequirePolicyService`, `RulesEngine:RequireAuthorizationService`).
+
+- **Execution Actor Metadata (Code)**:
+    - Added `ExecutionActorContext` and `AuthorizationRequest` models.
+    - Extended execution tracking state to include actor identity and decision correlation metadata.
+    - Added additive lifecycle audit properties to core rule, bundle, connection, and history models.
+
+### 🛠️ Improvements
+- **New RBAC Processing Guide**: Added [RBAC.md](docs/RBAC.md) documenting processing flow, ownership semantics, and integration patterns for API, worker, and admin surfaces.
+- **New Multi-Database Schema Draft**: Added [RBAC_SCHEMA_DRAFT.md](docs/RBAC_SCHEMA_DRAFT.md) with additive SQL Server, PostgreSQL, and MySQL schema examples for roles, permissions, group mappings, ACLs, and decision auditing.
+- **Documentation Harmonization**: Updated README and all existing docs markdown guides to consistently reference the application-side authorization authority model and actor-level auditing.
+- **Persistent Tracking Documentation**: Updated [PERSISTENT_EXECUTION_TRACKING.md](docs/PERSISTENT_EXECUTION_TRACKING.md) schema and sample code to include actor metadata columns and mapping (`ExecutedBy`, `ExecutedByName`, `ActorType`, `AuthMethod`, `DecisionCorrelationId`).
+    - Added an idempotent migration appendix (`ALTER TABLE`) for SQL Server, PostgreSQL, and MySQL to retrofit existing `BundleExecutionLogs` tables.
+- **Secure Defaults Guidance**: Added a production hardening checklist in [DEVELOPERS_GUIDE.md](docs/DEVELOPERS_GUIDE.md) covering fail-closed authorization, actor metadata, and operational verification.
+- **Automated Validation**: Added authorization integration tests covering deny behavior and actor context propagation through tracker state.
+    - Added tests covering fail-closed behavior with and without registered authorization providers.
+    - Added tests confirming authorization callback delegate precedence over registered `IRuleAuthorizationService` implementations.
+
+### ⚠️ Backward Compatibility
+- **Backwards-Compatible Additions**: Existing runtime APIs remain supported. New authorization and actor-context functionality is optional and additive.
+
 ## [2.3.0] - 2026-07-31
 
 ### 🚀 New Features

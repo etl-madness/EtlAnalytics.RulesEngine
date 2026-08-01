@@ -2,6 +2,21 @@
 
 This document outlines the core business rules and logic implemented within the `EtlAnalytics.RulesEngine` project.
 
+## Authorization and Ownership Policy
+
+Authorization for CRUD and execution is expected to be enforced by the consuming application using RBAC/group/ACL policies.
+
+Recommended decision order:
+1. Explicit deny ACL.
+2. Explicit allow ACL.
+3. Role and group grants.
+4. Owner fallback grants (if enabled).
+5. Default deny.
+
+The package should be used as the enforcement hook surface, not the source of policy truth.
+
+See `RBAC.md` and `RBAC_SCHEMA_DRAFT.md`.
+
 ## 1. Rule Execution Framework
 
 ### 1.1 Supported Rule Types

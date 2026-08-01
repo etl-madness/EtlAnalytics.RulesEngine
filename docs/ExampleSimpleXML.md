@@ -2,6 +2,8 @@
 
 This example demonstrates how to implement an **XML-backed Rule Store** (`XmlRuleStore`) for `EtlAnalytics.RulesEngine`. Instead of storing rules and bundles in a SQL database, rules are loaded dynamically from an XML configuration file (`rules.xml`).
 
+Authorization remains an application concern regardless of store type. Apply RBAC/group/ACL checks in the host application before calling store or engine operations. See `RBAC.md`.
+
 ## Prerequisites
 - `EtlAnalytics.RulesEngine` NuGet
 - `EtlAnalytics.RulesEngine.Dapper` NuGet *(if executing T-SQL rules)*

@@ -4,6 +4,46 @@ This package targets both **.NET 8** and **.NET 10**, allowing you to use the la
 
 Welcome to the **EtlAnalytics.RulesEngine**! If you're new to the concept of a "Rules Engine," think of this library as a way to let your users (or yourself) change how your program behaves without having to rewrite or redeploy the whole application.
 
+## Authorization Model (Important)
+
+The recommended security model is:
+- **Application side**: authentication, RBAC/group mapping, ACL policy decisions, and decision auditing.
+- **NuGet package side**: enforcement hooks, execution/store guard points, and actor metadata propagation.
+
+This keeps integration platform-independent across Windows, Linux, and macOS authentication stacks.
+
+See:
+- `docs/RBAC.md`
+- `docs/RBAC_SCHEMA_DRAFT.md`
+
+### Authorization Wiring (Application Side)
+
+Register authorization with DI:
+
+```csharp
+// Option A: temporary permissive default (development only)
+builder.Services.AddBusinessRulesEngineAuthorization();
+
+// Option B: production policy service
+builder.Services.AddBusinessRulesEngineAuthorization<MyRuleAuthorizationService>();
+```
+
+Enable fail-closed mode to require policy checks:
+
+```json
+{
+    "RulesEngine": {
+        "Authorization": {
+            "FailClosed": true
+        }
+    }
+}
+```
+
+Supported aliases for fail-closed mode:
+- `RulesEngine:Authorization:RequirePolicyService`
+- `RulesEngine:RequireAuthorizationService`
+
 
 ---
 | If the user wants to... | Use the Core Package | Use the Dapper Package |
@@ -23,6 +63,8 @@ Welcome to the **EtlAnalytics.RulesEngine**! If you're new to the concept of a "
 > This codebase includes structured documentation designed for AI consumption. If you are an AI agent, please prioritize scanning these documents:
 > - **[Architecture Overview](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/ARCHITECTURE_OVERVIEW.md)**: Comprehensive architectural guide with Mermaid diagrams covering system components, sequence orchestration, async tracking, and sandboxing.
 > - **[Schema Upgrade Guide](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/SCHEMA_UPGRADE.md)**: Idempotent database migration scripts (SQL Server, Postgres, MySQL) for upgrading database schemas across versions.
+> - **[RBAC Processing Guide](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/RBAC.md)**: Application-side RBAC/group/ACL processing model and evaluation order.
+> - **[RBAC Schema Draft](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/RBAC_SCHEMA_DRAFT.md)**: Additive schema draft for policy and audit tables.
 > - **[AI Implementation Guide](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/ai_implementation_guide.md)**: Technical reference for integration, sandboxing constraints, and data-passing patterns.
 > - **[Integration Example](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/Example.md)**: Full C# example showing DI setup and usage in `Program.cs`.
 > - **[Example Rules Engine Editor and Runner](https://github.com/etl-madness/BusinessRulesEngineExample)**: A Radzen Blazor Server based application for editing and running rules in a web interface.

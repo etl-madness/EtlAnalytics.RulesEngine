@@ -18,6 +18,16 @@ public interface IBundleExecutionTracker
     Task<BundleExecutionState> CreateExecutionAsync(BusinessRuleBundle bundle, Guid? executionId = null);
 
     /// <summary>
+    /// Pre-populates and registers a new bundle execution state including optional actor metadata from the consuming application.
+    /// </summary>
+    /// <param name="bundle">The business rule bundle to be executed.</param>
+    /// <param name="executionId">Optional custom execution identifier. If null, a new GUID will be generated.</param>
+    /// <param name="actorContext">Optional normalized actor context supplied by the application.</param>
+    /// <returns>The newly created <see cref="BundleExecutionState"/>.</returns>
+    Task<BundleExecutionState> CreateExecutionAsync(BusinessRuleBundle bundle, Guid? executionId, ExecutionActorContext? actorContext)
+        => CreateExecutionAsync(bundle, executionId);
+
+    /// <summary>
     /// Updates the overall status of the bundle execution run.
     /// </summary>
     /// <param name="executionId">The unique execution identifier.</param>

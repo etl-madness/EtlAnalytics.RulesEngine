@@ -21,6 +21,12 @@ public class InMemoryBundleExecutionTracker : IBundleExecutionTracker
     /// <inheritdoc />
     public Task<BundleExecutionState> CreateExecutionAsync(BusinessRuleBundle bundle, Guid? executionId = null)
     {
+        return CreateExecutionAsync(bundle, executionId, actorContext: null);
+    }
+
+    /// <inheritdoc />
+    public Task<BundleExecutionState> CreateExecutionAsync(BusinessRuleBundle bundle, Guid? executionId, ExecutionActorContext? actorContext)
+    {
         var id = executionId ?? Guid.NewGuid();
 
         var state = new BundleExecutionState
@@ -28,6 +34,11 @@ public class InMemoryBundleExecutionTracker : IBundleExecutionTracker
             ExecutionId = id,
             BundleId = bundle.Id,
             BundleName = bundle.Name,
+            ExecutedBy = actorContext?.ActorId,
+            ExecutedByName = actorContext?.ActorName,
+            ActorType = actorContext?.ActorType,
+            AuthMethod = actorContext?.AuthMethod,
+            DecisionCorrelationId = actorContext?.DecisionCorrelationId,
             Categories = new List<string>(bundle.Categories),
             Tags = new List<string>(bundle.Tags),
             Status = ExecutionStatus.Pending,
@@ -311,6 +322,11 @@ public class InMemoryBundleExecutionTracker : IBundleExecutionTracker
             ExecutionId = original.ExecutionId,
             BundleId = original.BundleId,
             BundleName = original.BundleName,
+            ExecutedBy = original.ExecutedBy,
+            ExecutedByName = original.ExecutedByName,
+            ActorType = original.ActorType,
+            AuthMethod = original.AuthMethod,
+            DecisionCorrelationId = original.DecisionCorrelationId,
             Categories = new List<string>(original.Categories),
             Tags = new List<string>(original.Tags),
             Status = original.Status,
