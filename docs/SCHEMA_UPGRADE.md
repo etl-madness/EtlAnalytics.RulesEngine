@@ -1,15 +1,15 @@
-# Database Schema Upgrade Guide (v2.3.0 to v2.4.0) - EtlAnalytics.RulesEngine
+# Database Schema Upgrade Guide (v2.2.0 to v2.3.0) - EtlAnalytics.RulesEngine
 
-This guide provides idempotent database migration scripts and instructions to upgrade existing `EtlAnalytics.RulesEngine` databases to version **v2.4.0** (adding support for application-side authorization metadata and audit fields alongside the existing Categories and Tags model enhancements).
+This guide provides idempotent database migration scripts and instructions to upgrade existing `EtlAnalytics.RulesEngine` databases to version **v2.3.0** (adding support for application-side authorization metadata and audit fields alongside the existing Categories and Tags model enhancements).
 
-Note: this document focuses on the v2.3.0 categories and tags upgrade path while remaining compatible with the v2.4.0 authorization guidance. For application-side authorization schema planning (RBAC/group/ACL and policy decision audit tables), see `RBAC_SCHEMA_DRAFT.md`.
+Note: this document focuses on the v2.3.0 categories and tags upgrade path while remaining compatible with the v2.3.0 authorization guidance. For application-side authorization schema planning (RBAC/group/ACL and policy decision audit tables), see `RBAC_SCHEMA_DRAFT.md`.
 
 ---
 
 ## 1. Overview of Schema Changes in v2.3.0
 
-The v2.3.0 update introduces `Categories` and `Tags` columns stored as JSON array strings (`NVARCHAR(MAX)` or `TEXT`).
-
+The v2.3.0 update introduces `Categories` and `Tags` columns stored as JSON array strings (`NVARCHAR(MAX)` or `TEXT`), along with optional RBAC and audit fields for application-side authorization and policy decision tracking. These changes are designed to enhance rule metadata management, improve governance, and support more complex rule execution scenarios. See `RBAC_SCHEMA_DRAFT.md` for details on the RBAC and audit schema.
+ 
 ### Added Columns:
 - `dbo.DbConnections`: Added `Categories` and `Tags`.
 - `dbo.BusinessRules`: Added `Categories` and `Tags`.
