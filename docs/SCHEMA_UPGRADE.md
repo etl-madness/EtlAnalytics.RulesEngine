@@ -1,8 +1,8 @@
-# Database Schema Upgrade Guide (v2.2.0 to v2.3.0) - EtlAnalytics.RulesEngine
+# Database Schema Upgrade Guide (v2.3.0 to v2.4.0) - EtlAnalytics.RulesEngine
 
-This guide provides idempotent database migration scripts and instructions to upgrade existing `EtlAnalytics.RulesEngine` databases to version **v2.3.0** (adding support for multiple **Categories** and **Tags** across Rules, Bundles, Connections, and Execution Tracker logs).
+This guide provides idempotent database migration scripts and instructions to upgrade existing `EtlAnalytics.RulesEngine` databases to version **v2.4.0** (adding support for application-side authorization metadata and audit fields alongside the existing Categories and Tags model enhancements).
 
-Note: this document focuses on the v2.3.0 categories and tags upgrade. For application-side authorization schema planning (RBAC/group/ACL and policy decision audit tables), see `RBAC_SCHEMA_DRAFT.md`.
+Note: this document focuses on the v2.3.0 categories and tags upgrade path while remaining compatible with the v2.4.0 authorization guidance. For application-side authorization schema planning (RBAC/group/ACL and policy decision audit tables), see `RBAC_SCHEMA_DRAFT.md`.
 
 ---
 

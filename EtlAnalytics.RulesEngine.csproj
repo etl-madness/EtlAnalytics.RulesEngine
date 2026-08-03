@@ -8,14 +8,14 @@
 
     <!-- NuGet Metadata -->
     <PackageId>EtlAnalytics.RulesEngine</PackageId>
-    <Version>2.3.0</Version>
+    <Version>2.4.0</Version>
     <Authors>etl-madness</Authors>
     <Company>ETL Madness</Company>
     <Description>A lightweight, database-agnostic business rules engine supporting T-SQL, Postgres, MySQL, and C# scripting. Output from one rule can be used as input for another, enabling complex workflows.</Description>
     <PackageTags>rules-engine;etl;analytics;sql-server;postgres;mysql;csharp-scripting</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    
+
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
