@@ -2,6 +2,8 @@
 
 This example provides a single-file `Program.cs` approach for a console application that can execute either a single Rule or a Rule Bundle based on command-line arguments.
 
+If this pattern is moved into production services, add application-side authorization checks before invoking rule or bundle execution. Recommended processing order is documented in `RBAC.md`.
+
 ## BusinessRulesEngineExample Project
 You can clone or download the full example project from the link below.
 
@@ -87,6 +89,34 @@ public class SimpleRuleStore : IBusinessRuleStore
         return bundle;
     }
 
+    public async Task<IEnumerable<BusinessRule>> GetRulesByCategoryAsync(string category)
+    {
+        using var db = _dbProvider.CreateConnection(_connectionString);
+        var rules = await db.QueryAsync<BusinessRule>("SELECT * FROM BusinessRules WHERE IsActive = 1");
+        return rules.Where(r => r.Categories.Contains(category, StringComparer.OrdinalIgnoreCase));
+    }
+
+    public async Task<IEnumerable<BusinessRule>> GetRulesByTagAsync(string tag)
+    {
+        using var db = _dbProvider.CreateConnection(_connectionString);
+        var rules = await db.QueryAsync<BusinessRule>("SELECT * FROM BusinessRules WHERE IsActive = 1");
+        return rules.Where(r => r.Tags.Contains(tag, StringComparer.OrdinalIgnoreCase));
+    }
+
+    public async Task<IEnumerable<BusinessRuleBundle>> GetBundlesByCategoryAsync(string category)
+    {
+        using var db = _dbProvider.CreateConnection(_connectionString);
+        var bundles = await db.QueryAsync<BusinessRuleBundle>("SELECT * FROM BusinessRuleBundles WHERE IsActive = 1");
+        return bundles.Where(b => b.Categories.Contains(category, StringComparer.OrdinalIgnoreCase));
+    }
+
+    public async Task<IEnumerable<BusinessRuleBundle>> GetBundlesByTagAsync(string tag)
+    {
+        using var db = _dbProvider.CreateConnection(_connectionString);
+        var bundles = await db.QueryAsync<BusinessRuleBundle>("SELECT * FROM BusinessRuleBundles WHERE IsActive = 1");
+        return bundles.Where(b => b.Tags.Contains(tag, StringComparer.OrdinalIgnoreCase));
+    }
+
     public async Task<DbConnectionDefinition?> GetDbConnectionByIdAsync(int id)
     {
         using var db = _dbProvider.CreateConnection(_connectionString);
@@ -129,6 +159,7 @@ public class Program
 
         services.AddSingleton<IConfiguration>(config);
         services.AddSingleton<IEncryptionService, AesEncryptionService>();
+        services.AddBusinessRulesEngineTracking();
         services.AddScoped<ISqlRuleExecutor, DapperSqlRuleExecutor>();
         services.AddScoped<IRuleDbProvider, SqlServerRuleDbProvider>();
 

@@ -23,4 +23,16 @@ public interface IBusinessRuleStore
     /// <summary>Retrieves all available database connection definitions.</summary>
     /// <returns>A collection of connection definitions.</returns>
     Task<IEnumerable<DbConnectionDefinition>> GetAllDbConnectionsAsync();
+
+    /// <summary>Retrieves all rules belonging to a specific category.</summary>
+    Task<IEnumerable<BusinessRule>> GetRulesByCategoryAsync(string category) => Task.FromResult<IEnumerable<BusinessRule>>(System.Array.Empty<BusinessRule>());
+
+    /// <summary>Retrieves all rules matching a specific tag.</summary>
+    Task<IEnumerable<BusinessRule>> GetRulesByTagAsync(string tag) => Task.FromResult<IEnumerable<BusinessRule>>(System.Array.Empty<BusinessRule>());
+
+    /// <summary>Retrieves all bundles belonging to a specific category.</summary>
+    Task<IEnumerable<BusinessRuleBundle>> GetBundlesByCategoryAsync(string category) => Task.FromResult<IEnumerable<BusinessRuleBundle>>(System.Array.Empty<BusinessRuleBundle>());
+
+    /// <summary>Retrieves all bundles matching a specific tag.</summary>
+    Task<IEnumerable<BusinessRuleBundle>> GetBundlesByTagAsync(string tag) => Task.FromResult<IEnumerable<BusinessRuleBundle>>(System.Array.Empty<BusinessRuleBundle>());
 }

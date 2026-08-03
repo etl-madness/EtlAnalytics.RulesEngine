@@ -5,7 +5,10 @@ using EtlAnalytics.RulesEngine.Models;
 
 namespace EtlAnalytics.RulesEngine.Executors;
 
-internal class CSharpRuleExecutor : IRuleExecutor
+/// <summary>
+/// Executes business rules containing C# script code using Roslyn scripting.
+/// </summary>
+public class CSharpRuleExecutor : IRuleExecutor
 {
     private readonly string[] _scriptReferences;
     private readonly string[] _scriptImports;
@@ -33,8 +36,15 @@ internal class CSharpRuleExecutor : IRuleExecutor
         "EtlAnalytics.RulesEngine.Models"
     };
 
+    /// <inheritdoc />
     public string RuleType => RuleConstants.CSharp;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CSharpRuleExecutor"/> class.
+    /// </summary>
+    /// <param name="scriptReferences">Assemblies to reference in scripts.</param>
+    /// <param name="scriptImports">Namespaces to import in scripts.</param>
+    /// <param name="scriptTimeoutSeconds">Maximum allowed script execution time in seconds.</param>
     public CSharpRuleExecutor(
         string[] scriptReferences,
         string[] scriptImports,
@@ -45,6 +55,7 @@ internal class CSharpRuleExecutor : IRuleExecutor
         _scriptTimeoutSeconds = scriptTimeoutSeconds;
     }
 
+    /// <inheritdoc />
     public async Task<object?> ExecuteAsync(BusinessRule rule, RuleExecutionContext context, Type contextType, Action<string>? appendLog)
     {
         appendLog?.Invoke("[CS] Compiling and executing C# script...");

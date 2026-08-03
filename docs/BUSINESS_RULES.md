@@ -2,6 +2,21 @@
 
 This document outlines the core business rules and logic implemented within the `EtlAnalytics.RulesEngine` project.
 
+## Authorization and Ownership Policy
+
+Authorization for CRUD and execution is expected to be enforced by the consuming application using RBAC/group/ACL policies.
+
+Recommended decision order:
+1. Explicit deny ACL.
+2. Explicit allow ACL.
+3. Role and group grants.
+4. Owner fallback grants (if enabled).
+5. Default deny.
+
+The package should be used as the enforcement hook surface, not the source of policy truth.
+
+See `RBAC.md` and `RBAC_SCHEMA_DRAFT.md`.
+
 ## 1. Rule Execution Framework
 
 ### 1.1 Supported Rule Types
@@ -16,6 +31,16 @@ This document outlines the core business rules and logic implemented within the 
 - **Result Aggregation**: Results from parallel rules are aggregated into a `List<object?>`.
 - **State Management**: The execution context maintains a history of all step results within a bundle, indexed by their sequence order. For parallel groups, the value stored is the aggregated list of results.
 - **Bundle Abort Policy**: If any step (sequential or parallel) within a bundle fails (throws an exception), the entire bundle execution is terminated immediately.
+
+### 1.3 Asynchronous Execution & Real-Time Tracking
+- **Granular Status Lifecycle**: Sequence groups and rule items transition through defined status states:
+  - `Pending`: Pre-populated for all sequences and rule items prior to run start.
+  - `Starting` / `InProgress`: Step is currently executing.
+  - `Completed`: Step finished successfully.
+  - `Failed`: Step encountered an exception during execution.
+  - `Skipped`: Step bypassed due to a preceding failure or bundle termination.
+- **Parallel Step Tracking**: Multi-rule sequence groups executing concurrently update individual rule statuses independently in a thread-safe manner.
+- **State Store & Event Observer**: The `IBundleExecutionTracker` interface provides real-time state snapshots (`GetExecutionAsync`) and event callbacks (`OnStatusChanged`) for caller notifications.
 
 ## 2. SQL Rule Constraints & Security
 
@@ -60,8 +85,10 @@ C# scripts are executed with a limited set of allowed assemblies and namespaces 
 ### 4.2 Key Management
 - The encryption key is prioritized from the `DB_ENCRYPTION_KEY` environment variable, falling back to the `Security:EncryptionKey` app configuration setting.
 
-## 5. Versioning and Metadata
+## 5. Versioning, Categorization, and Metadata
 - Each `BusinessRule` tracks its own version number (defaulting to 1).
+- Rules, Bundles, and Connections support multi-category (`Categories: List<string>`) and multi-tag (`Tags: List<string>`) classification.
+- Metadata is persisted in SQL stores as JSON array strings (`NVARCHAR(MAX)` / `TEXT`) and supports filtering via `IBusinessRuleStore` search methods (`GetRulesByCategoryAsync`, `GetRulesByTagAsync`, `GetBundlesByCategoryAsync`, `GetBundlesByTagAsync`).
 - Rules track `CreatedAt` and `UpdatedAt` timestamps for auditability.
 - Rules include an `IsActive` flag to allow for soft-disabling without deletion.
 
@@ -324,10 +351,11 @@ SELECT ProductId, Quantity FROM Inventory WHERE WarehouseId = 10;
 #### **Step 3: C# Rule (Sequence 2 - Join & Process)**
 ```csharp
 // Name: ProcessParallelResults
-// PreviousResult contains a List<object> with results from Step 1 and Step 2
-var parallelResults = (List<object>)PreviousResult;
-var products = (List<dynamic>)parallelResults[0];
-var stock = (List<dynamic>)parallelResults[1];
+// PreviousResult contains a List<object?> with results from Step 1 and Step 2.
+// Positional Indexing: Index [0] corresponds to Step 1 ('Fetch Products'), Index [1] corresponds to Step 2 ('Fetch Stock')
+var parallelResults = (List<object?>)PreviousResult;
+var products = (List<dynamic>)parallelResults[0]; // 1st parallel rule in Sequence 1
+var stock = (List<dynamic>)parallelResults[1];    // 2nd parallel rule in Sequence 1
 
 Log($"Processing {products.Count} products with corresponding stock data.");
 
@@ -340,3 +368,12 @@ foreach(var p in products) {
 }
 return "Parallel processing complete.";
 ```
+
+> [!TIP]
+> **Targeting Parallel Rules by Name or ID**: When using `IBundleExecutionTracker`, you can also retrieve results directly by `RuleName` or `RuleId` instead of array index:
+> ```csharp
+> var state = await tracker.GetExecutionAsync(executionId);
+> var seq1 = state.Sequences.First(s => s.SequenceOrder == 1);
+> var products = seq1.Rules.First(r => r.RuleName == "Fetch Products").Result;
+> var stock = seq1.Rules.First(r => r.RuleName == "Fetch Stock").Result;
+> ```

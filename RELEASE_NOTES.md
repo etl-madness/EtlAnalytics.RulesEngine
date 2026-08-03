@@ -1,34 +1,31 @@
-# Release Notes - EtlAnalytics.RulesEngine
+# Release Notes
 
-## [2.1.0] - 2026-07-27
+## v2.3.0
 
-### 🚀 New Features
-- **Parallel Execution Support**: You can now execute multiple rules within a bundle concurrently. 
-    - Rules sharing the same `SequenceOrder` are automatically grouped into a "Sequence Group".
-    - Groups with multiple items are executed in parallel using `Task.WhenAll`.
-    - The engine synchronizes at the end of each sequence group before proceeding to the next.
-- **Result Aggregation**: 
-    - When a step is executed in parallel, its results are aggregated into a `List<object?>`.
-    - Downstream rules receive this list in the `PreviousResult` property of the context.
-    - Historical results in `StepResults[sequenceOrder]` also store the aggregated list for parallel groups.
+This release focuses on richer rule metadata and clearer governance guidance for applications that embed `EtlAnalytics.RulesEngine`.
 
-### 🛠️ Improvements
-- **Enhanced Documentation**: Full update to all `docs/` files, including a new High-Performance Data Enrichment use case.
-- **Unit Tests**: Added comprehensive tests for parallel orchestration and error handling.
+### Highlights
 
-### ⚠️ Backward Compatibility
-- **100% Backward Compatible**: Existing bundles with unique `SequenceOrder` values will continue to execute sequentially as before.
-- **No Schema Changes Required**: The feature utilizes the existing `SequenceOrder` column. No database migrations are necessary.
+- Added Category and Tag metadata support across core rule-engine entities, including rules, bundles, connections, and execution-tracking records.
+- Expanded the governance story around RBAC, ACLs, and group-based authorization so the consuming application can own policy decisions while the package provides enforcement hooks.
+- Clarified the recommended authorization flow: explicit deny ACL, explicit allow ACL, RBAC grants, owner fallback, then default deny.
+- Updated the documentation trail for schema upgrades and authorization planning, including the RBAC schema draft and the v2.3.0 schema upgrade guide.
+- Refreshed the DataForge showcase description to highlight the reference application for governed ETL and analytics workflows, including bundle management, execution history, and roles/permissions administration.
 
-### ⬆️ Upgrading
-1. Update your project reference to version **2.1.0**.
-2. **Result Handling Note**: If you modify an existing sequential bundle to be parallel, ensure that the rules *following* the parallel group are updated to handle a `List<object?>` in their `PreviousResult` instead of a single object.
-3. No changes are required to the `IBusinessRuleStore` or `IRuleExecutor` implementations.
+### Category and Tag Details
 
----
+- Categories and Tags are stored as JSON array-style metadata on supported entities.
+- The fields are nullable so existing databases can adopt them without breaking current records.
+- The metadata is intended to improve discoverability, organization, and lifecycle management of rules and related assets.
 
-## [2.0.2] - Previous Release
-- Initial multi-targeting support for .NET 8 and .NET 10.
-- Decoupled SQL execution logic from core engine.
-- Added support for cross-database rules via `ConnectionId`.
-- Hardened C# and SQL security sandboxes.
+### RBAC and ACL Details
+
+- Authorization is intentionally application-owned and provider-agnostic.
+- The package exposes the hooks needed to integrate a host policy engine for CRUD and execution checks.
+- RBAC, group-role mappings, ACL entries, and decision auditing are documented as the preferred governance model for consuming applications.
+
+### Documentation Updates
+
+- `docs/SCHEMA_UPGRADE.md` now tracks the v2.3.0 Categories/Tags upgrade path and points to the RBAC schema draft for authorization planning.
+- `docs/RBAC.md` documents the recommended authorization evaluation order and ownership semantics.
+- `docs/RBAC_SCHEMA_DRAFT.md` outlines the additive tables and audit fields for application-side authorization.

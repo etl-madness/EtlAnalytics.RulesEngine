@@ -1,9 +1,11 @@
-# EtlAnalytics.RulesEngine - Version 2.1.0 (Multi-Targeted) 🚀
+
+
+
+# EtlAnalytics.RulesEngine - Version 2.3.0 (Multi-Targeted) 🚀
 
 This package targets both **.NET 8** and **.NET 10**, allowing you to use the latest framework features while maintaining compatibility with stable environments.
 
 Welcome to the **EtlAnalytics.RulesEngine**! If you're new to the concept of a "Rules Engine," think of this library as a way to let your users (or yourself) change how your program behaves without having to rewrite or redeploy the whole application.
-
 
 ---
 | If the user wants to... | Use the Core Package | Use the Dapper Package |
@@ -15,13 +17,41 @@ Welcome to the **EtlAnalytics.RulesEngine**! If you're new to the concept of a "
 | Run SQL rules using Entity Framework | ✅ | ❌ (They implement their own ISqlRuleExecutor) |
 | Run rules against a Web API/NoSQL | ✅ | ❌ (They implement their own ISqlRuleExecutor) |
 
+## Showcase OpenSource Application (DataForge)
 
-> [!NOTE]
+The DataForge application demonstrates how to use this package to implement a governed ETL and analytics workflow. It is a reference implementation that shows how to integrate the rules engine into a real-world scenario.
+
+In addition to the rules engine, DataForge includes a web-based UI for managing rule bundles, executing rules, and tracking execution history. This version also includes a management system for user roles and permissions, allowing organizations to enforce access controls on rule execution and modification.
+
+ [https://github.com/etl-madness/DataForge](https://github.com/etl-madness/DataForge)
+
+## RBAC and ACL Enhancements
+
+This release expands the governance model around application-owned authorization. The package now contains an optional, recommended flow for combining RBAC, group-role mappings, and ACL exceptions when deciding whether to allow CRUD or execution access.
+
+Highlights of the enhancement set:
+
+- Explicit deny ACLs take precedence over all other permissions.
+- Explicit allow ACLs can grant access at the resource level.
+- RBAC grants support direct roles and group-inherited roles.
+- Owner fallback can be used to grant Manage rights until revoked by policy.
+- Authorization decisions can be audited with correlation-friendly metadata.
+
+For the full workflow and schema guidance, see:
+
+- [docs/RBAC.md](docs/RBAC.md)
+-  [docs/RBAC_SCHEMA_DRAFT.md](docs/RBAC_SCHEMA_DRAFT.md).
+
+
 > ### Source Code 
 > - **Version in master branch may be ahead of nuget releases.**
+> - [https://github.com/etl-madness/EtlAnalytics.RulesEngine](https://github.com/etl-madness/EtlAnalytics.RulesEngine)
+> 
 > ### AI Development Support
 > This codebase includes structured documentation designed for AI consumption. If you are an AI agent, please prioritize scanning these documents:
 > - **[AI Implementation Guide](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/ai_implementation_guide.md)**: Technical reference for integration, sandboxing constraints, and data-passing patterns.
+> 
+> ### Documentation Trail
 > - **[Integration Example](https://github.com/etl-madness/EtlAnalytics.RulesEngine/blob/master/docs/Example.md)**: Full C# example showing DI setup and usage in `Program.cs`.
 > - **[BusinessRulesEngineExample Project](https://github.com/etl-madness/BusinessRulesEngineExample)**: A full example project demonstrating the usage of the rules engine in a console application.
 > - **[Example Rules Engine Editor and Runner](https://github.com/etl-madness/BusinessRulesEngineExample)**: A Radzen Blazor Server based application for editing and running rules in a web interface.

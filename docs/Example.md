@@ -2,6 +2,8 @@
 
 This guide provides a complete, end-to-end example of how to build a dynamic discount engine using both the core **RulesEngine** and the **Dapper** extension package.
 
+Before wiring execution endpoints, integrate application-side authorization checks for rule, bundle, and connection access. See `RBAC.md` for processing flow and `RBAC_SCHEMA_DRAFT.md` for schema guidance.
+
 ## 1. Required NuGet Packages
 Ensure your project file (or `dotnet add package` commands) includes:
 - `EtlAnalytics.RulesEngine`
@@ -96,14 +98,35 @@ public class SqlRuleStore : IBusinessRuleStore
         {
             var items = await _dataService.QueryListAsync<BusinessRuleBundleItem>(
                 "SELECT * FROM BusinessRuleBundleItems WHERE BundleId = @Id ORDER BY SequenceOrder",
-                new
-                {
-                    Id = bundle.Id
-                });
+                new { Id = bundle.Id });
             // Note: Rules with the same SequenceOrder will be executed in parallel by the engine
             bundle.Items = items.ToList();
         }
         return bundle;
+    }
+
+    public async Task<IEnumerable<BusinessRule>> GetRulesByCategoryAsync(string category)
+    {
+        var rules = await _dataService.QueryListAsync<BusinessRule>("SELECT * FROM BusinessRules WHERE IsActive = 1");
+        return rules.Where(r => r.Categories.Contains(category, StringComparer.OrdinalIgnoreCase));
+    }
+
+    public async Task<IEnumerable<BusinessRule>> GetRulesByTagAsync(string tag)
+    {
+        var rules = await _dataService.QueryListAsync<BusinessRule>("SELECT * FROM BusinessRules WHERE IsActive = 1");
+        return rules.Where(r => r.Tags.Contains(tag, StringComparer.OrdinalIgnoreCase));
+    }
+
+    public async Task<IEnumerable<BusinessRuleBundle>> GetBundlesByCategoryAsync(string category)
+    {
+        var bundles = await _dataService.QueryListAsync<BusinessRuleBundle>("SELECT * FROM BusinessRuleBundles WHERE IsActive = 1");
+        return bundles.Where(b => b.Categories.Contains(category, StringComparer.OrdinalIgnoreCase));
+    }
+
+    public async Task<IEnumerable<BusinessRuleBundle>> GetBundlesByTagAsync(string tag)
+    {
+        var bundles = await _dataService.QueryListAsync<BusinessRuleBundle>("SELECT * FROM BusinessRuleBundles WHERE IsActive = 1");
+        return bundles.Where(b => b.Tags.Contains(tag, StringComparer.OrdinalIgnoreCase));
     }
 
     public Task<DbConnectionDefinition?> GetDbConnectionByIdAsync(int id) =>
@@ -116,7 +139,7 @@ public class SqlRuleStore : IBusinessRuleStore
 ```
 
 ### 2.4 Dependency Injection & Execution
-Wire the Data Service and Rule Store into your container.
+Wire the Data Service, Execution Tracker, and Rule Store into your container.
 
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
@@ -137,12 +160,16 @@ var config = new ConfigurationBuilder()
 
 services.AddSingleton<IConfiguration>(config);
 
-// 2. Register Rules Engine (Core)
+// 2. Register Rules Engine (Core) & Execution Tracking
 services.AddSingleton<IEncryptionService, AesEncryptionService>();
+services.AddBusinessRulesEngineTracking();
 
 // 3. Register Dapper Executor & DB Providers (Dapper Package)
 services.AddScoped<ISqlRuleExecutor, DapperSqlRuleExecutor>();
 services.AddScoped<IRuleDbProvider, SqlServerRuleDbProvider>();
+
+// 3.1 Register application authorization policy service
+services.AddBusinessRulesEngineAuthorization<MyRuleAuthorizationService>();
 
 // 4. Register Executors (Default TSQL and CSharp are auto-added by engine if not registered)
 // But we can add extensions like Javascript here:
@@ -178,6 +205,41 @@ var result = await engine.ExecuteBundleAsync("DiscountBundle", context, log => {
 });
 
 Console.WriteLine($"Final Discount Applied: {result}");
+```
+
+### 2.5 Authorization Service Example
+
+The application decides authorization and the package enforces it via hooks.
+
+```csharp
+using EtlAnalytics.RulesEngine.Interfaces;
+using EtlAnalytics.RulesEngine.Models;
+
+public class MyRuleAuthorizationService : IRuleAuthorizationService
+{
+        public Task<bool> AuthorizeAsync(AuthorizationRequest request, ExecutionActorContext? actorContext = null, CancellationToken cancellationToken = default)
+        {
+                // Example policy: only users with ActorType=Admin can execute bundles.
+                if (request.ResourceType == "Bundle" && request.Action == "Execute")
+                {
+                        return Task.FromResult(string.Equals(actorContext?.ActorType, "Admin", StringComparison.OrdinalIgnoreCase));
+                }
+
+                return Task.FromResult(true);
+        }
+}
+```
+
+Optional fail-closed setting for production:
+
+```json
+{
+    "RulesEngine": {
+        "Authorization": {
+            "FailClosed": true
+        }
+    }
+}
 ```
 
 ---

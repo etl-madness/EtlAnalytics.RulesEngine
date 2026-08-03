@@ -7,7 +7,10 @@ using Microsoft.Extensions.Configuration;
 
 namespace EtlAnalytics.RulesEngine.Executors;
 
-internal class TsqlRuleExecutor : IRuleExecutor
+/// <summary>
+/// Executes business rules containing T-SQL script code against a target relational database.
+/// </summary>
+public class TsqlRuleExecutor : IRuleExecutor
 {
     private readonly IBusinessRuleStore _ruleStore;
     private readonly ISqlRuleExecutor _sqlExecutor;
@@ -16,8 +19,19 @@ internal class TsqlRuleExecutor : IRuleExecutor
     private readonly string[] _forbiddenKeywords;
     private readonly int _sqlTimeoutSeconds;
 
+    /// <inheritdoc />
     public string RuleType => RuleConstants.TSQL;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TsqlRuleExecutor"/> class.
+    /// </summary>
+    /// <param name="configuration">Application configuration.</param>
+    /// <param name="ruleStore">Business rule store.</param>
+    /// <param name="sqlExecutor">SQL rule executor implementation.</param>
+    /// <param name="encryptionService">Encryption service for decrypting connection strings.</param>
+    /// <param name="connectionString">Default SQL connection string.</param>
+    /// <param name="forbiddenKeywords">List of blocked SQL keywords for security sandboxing.</param>
+    /// <param name="sqlTimeoutSeconds">Maximum allowed SQL query execution timeout in seconds.</param>
     public TsqlRuleExecutor(
         IConfiguration configuration,
         IBusinessRuleStore ruleStore,
@@ -35,6 +49,7 @@ internal class TsqlRuleExecutor : IRuleExecutor
         _sqlTimeoutSeconds = sqlTimeoutSeconds;
     }
 
+    /// <inheritdoc />
     public async Task<object?> ExecuteAsync(BusinessRule rule, RuleExecutionContext context, Type contextType, Action<string>? appendLog)
     {
         string connectionString = _connectionString;

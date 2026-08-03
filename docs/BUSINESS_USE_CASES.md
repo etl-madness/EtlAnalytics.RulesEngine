@@ -2,6 +2,18 @@
 
 This document outlines key real-world business use cases and architectural patterns solved by `EtlAnalytics.RulesEngine`. By decoupling business logic from application code, organizations can dynamically alter system behavior, enforce security policies, and update business rules without code changes or redeployments.
 
+## Authorization Governance Use Case
+
+In regulated environments, applications commonly apply Hybrid RBAC + Group + ACL policies to control who can create, edit, delete, and execute rules and bundles.
+
+Recommended pattern:
+- Use application authentication and claims mapping for identity.
+- Use role and group grants for baseline access.
+- Use per-resource ACL entries for exceptions.
+- Keep explicit deny precedence to reduce risk.
+
+See `RBAC.md` and `RBAC_SCHEMA_DRAFT.md` for implementation details.
+
 ---
 
 ## 1. Zero-Day Exploit & Vulnerability Hot-Remediation 🛡️
@@ -239,6 +251,41 @@ By using **Parallel Execution** (assigning the same `SequenceOrder` to independe
 
 ---
 
+## 7. Automating Business Rule-Driven Workflows 🔄
+
+### Problem Statement
+Many organizations still depend on manual handoffs (email, spreadsheets, ticket routing) for operational decisions like approvals, escalations, and exception handling. These manual workflows create delays, inconsistent outcomes, and limited auditability.
+
+### Solution
+Use rule bundles as a workflow automation layer where each bundle step represents a workflow stage. The engine evaluates rules, routes outcomes, and updates execution state in near real time.
+
+Typical automation pattern:
+1. **Trigger Rule**: Ingests an event (API request, queue message, schedule tick).
+2. **Validation Rules**: Verifies required fields, policy prerequisites, and business constraints.
+3. **Decision Rules**: Calculates outcome (`AutoApprove`, `NeedsReview`, `Reject`) using context and historical data.
+4. **Action Rules**: Executes side effects through approved host services (ticket creation, notification dispatch, downstream API invocation).
+5. **Finalization Rule**: Writes workflow outcome metadata for reporting and operational dashboards.
+
+### Workflow Example: Automated Vendor Invoice Approval
+1. **Rule 1 (SQL)**: Load vendor risk score and payment history.
+2. **Rule 2 (C#)**: Validate invoice fields and detect duplicate invoice number.
+3. **Rule 3 (C#)**: Compute approval decision using amount thresholds, risk score, and contract status.
+4. **Rule 4 (C#)**: If approved, publish payment-ready event; if review is required, create an approval task.
+
+### Governance Recommendations
+- Enforce `Execute` authorization on bundles and `Use` authorization on referenced connections before running automation.
+- Pass actor metadata (`ExecutedBy`, `ActorType`, `DecisionCorrelationId`) for every triggered workflow.
+- Use explicit deny precedence in application-side policy evaluation for sensitive workflow paths.
+- Persist bundle, sequence, and rule execution logs to support operations, audit, and incident triage.
+
+### Business Outcomes
+- **Faster Cycle Times**: Replace manual approvals with deterministic execution paths.
+- **Consistency at Scale**: Standardize decisions across teams, regions, and channels.
+- **Operational Visibility**: Track each workflow stage with execution IDs and status transitions.
+- **Safer Change Management**: Evolve workflow behavior by updating rule data instead of redeploying services.
+
+---
+
 ## Summary of Benefits
 
 | Benefit | Description |
@@ -247,3 +294,4 @@ By using **Parallel Execution** (assigning the same `SequenceOrder` to independe
 | **Instant Vulnerability Shielding** | Rapidly mitigate Zero-Day exploits and malicious traffic vectors at runtime. |
 | **Auditability & Traceability** | Execution logging and step history provide complete transparency for compliance. |
 | **Sandboxed Security** | Restricted C# assemblies and SQL keyword blacklisting prevent untrusted script execution. |
+| **Workflow Automation** | Orchestrate approvals, escalations, and operational decisions through configurable rule bundles. |
